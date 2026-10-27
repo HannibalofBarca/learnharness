@@ -1,0 +1,163 @@
+/**
+ * The Claude Code bridge core (docs/claude-code-bridge.md), zero tokens: a
+ * scripted "Claude" drives the MCP-side callTool while the learner's inputs
+ * go through the real handleChatInput — the same seams the MCP route and
+ * POST /api/chat use.
+ *
+ * Runs under an isolated LH_DATA_DIR (set before any config-loading import).
+ */
+
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { after, describe, it } from "node:test";
+
+const TMP_DATA = fs.mkdtempSync(path.join(os.tmpdir(), "lh-bridge-"));
+process.env.LH_DATA_DIR = TMP_DATA;
+process.env.LH_UPDATE_FLUSH_MS = "1";
+
+const { chatStore } = await import("../src/store/chats.ts");
+const { callTool, listTools, validateArguments, phaseTools } = await import("../src/server/claude/tools.ts");
+const { handleChatInput } = await import("../src/server/chat-handler.ts");
+const { claudeSession } = await import("../src/server/claude/session.ts");
+const { isTurnRunning } = await import("../src/server/turn-liveness.ts");
+const { runningTurn } = await import("../src/server/turn-runs.ts");
+const { handleClaudeHook } = await import("../src/server/claude/hook.ts");
+const { bridgeToken } = await import("../src/server/claude/token.ts");
+
+after(() => {
+	fs.rmSync(TMP_DATA, { recursive: true, force: true });
+});
+
+const never = new AbortController().signal;
+
+async function settle(): Promise<void> {
+	for (let i = 0; i < 50 && [...chatIds].some((id) => isTurnRunning(id)); i++) await new Promise((r) => setTimeout(r, 5));
+}
+const chatIds = new Set<string>();
+function newChat(kind?: "practice") {
+	const chat = chatStore.createChat("test", kind);
+	chatIds.add(chat.id);
+	return chat.id;
+}
+const roles = (id: string) => chatStore.getChat(id)!.messages.map((m) => (m as { role: string }).role);
+
+const probeArgs = {
+	question: "What is $\\frac{d}{dx}x^2$?",
+	options: [
+		{ label: "$2x$", value: "a" },
+		{ label: "$x$", value: "b" },
+		{ label: "$x^2$", value: "c" },
+	],
+	explanation: "Power rule: bring the exponent down.",
+	correctAnswer: "a",
+};
+
+describe("claude bridge", () => {
+	it("lists the prober and teacher tools plus the bridge tools, never the replaced ones", () => {
+		const id = newChat();
+		const names = listTools(id).map((t) => t.name);
+		for (const name of ["send_to_user", "probe", "ask_user_question", "probe_done", "quiz", "plan_init", "wait_for_learner", "resume_session", "set_title"]) {
+			assert.ok(names.includes(name), `${name} listed`);
+		}
+		for (const name of ["read", "ls", "find", "grep", "research", "demo", "visual", "pdf"]) assert.ok(!names.includes(name), `${name} not listed`);
+	});
+
+	it("wait_for_learner returns text the learner sent before Claude asked", async () => {
+		const id = newChat();
+		const res = await handleChatInput(id, { type: "text", text: "teach me derivatives" });
+		assert.equal(((await res.json()) as { queued?: boolean }).queued, true);
+		const result = await callTool(id, "wait_for_learner", {}, never);
+		assert.match(result.text, /teach me derivatives/);
+		assert.deepEqual(roles(id), ["user"]);
+	});
+
+	it("send_to_user streams into a turn and persists as a native tool call + result", async () => {
+		const id = newChat();
+		const result = await callTool(id, "send_to_user", { message: "Hello **learner**" }, never);
+		assert.ok(!result.isError, result.text);
+		assert.ok(isTurnRunning(id), "a turn opened for Claude's output");
+		const waiting = callTool(id, "wait_for_learner", {}, never);
+		for (let i = 0; i < 100 && !claudeSession(id).blocked; i++) await new Promise((r) => setTimeout(r, 5));
+		await settle();
+		assert.ok(!isTurnRunning(id), "blocking settled the turn");
+		assert.deepEqual(roles(id), ["assistant", "toolResult"]);
+		const call = (chatStore.getChat(id)!.messages[0] as { content: { type: string; name: string }[] }).content[0]!;
+		assert.equal(call.type, "toolCall");
+		assert.equal(call.name, "send_to_user");
+		await handleChatInput(id, { type: "text", text: "ok" });
+		assert.match((await waiting).text, /ok/);
+		void callTool(id, "wait_for_learner", {}, never);
+		await settle();
+	});
+
+	it("a question persists without a result, settles the turn, and the answer returns to Claude", async () => {
+		const id = newChat();
+		const pending = callTool(id, "probe", probeArgs, never);
+		for (let i = 0; i < 100 && !claudeSession(id).blocked; i++) await new Promise((r) => setTimeout(r, 5));
+		await settle();
+		assert.ok(!isTurnRunning(id));
+		assert.deepEqual(roles(id), ["assistant"], "question call persisted, no placeholder result");
+		const callId = (chatStore.getChat(id)!.messages[0] as { content: { id: string }[] }).content[0]!.id;
+		assert.equal(claudeSession(id).blocked?.toolCallId, callId);
+		const answer = { kind: "quiz", tool: "probe", answers: [{ label: "$2x$", value: "a", index: 1 }], correct: true, confidence: 80 };
+		const res = await handleChatInput(id, { type: "answer", toolCallId: callId, answer: answer as never });
+		assert.equal(res.status, 200);
+		const back = await pending;
+		assert.match(back.text, /Learner's response to probe/);
+		assert.match(back.text, /"correct":true/);
+		assert.deepEqual(roles(id), ["assistant", "toolResult"]);
+		assert.ok(isTurnRunning(id), "the answer opened a turn for Claude's reaction");
+		runningTurn(id)?.abort();
+		await settle();
+	});
+
+	it("invalid arguments come back as a retryable error and persist as an error result", async () => {
+		const id = newChat();
+		const result = await callTool(id, "probe", { question: "x" }, never);
+		assert.equal(result.isError, true);
+		assert.match(result.text, /Validation failed/);
+		runningTurn(id)?.abort();
+		await settle();
+		assert.deepEqual(roles(id), ["assistant", "toolResult"]);
+	});
+
+	it("teacher tools are refused before probe_done", async () => {
+		const id = newChat();
+		const result = await callTool(id, "plan_init", { mermaid: "graph TD\nA-->B" }, never);
+		assert.equal(result.isError, true);
+		assert.match(result.text, /teacher phase/);
+	});
+
+	it("a learner stop refuses Claude's next output once", async () => {
+		const id = newChat();
+		await callTool(id, "send_to_user", { message: "part 1" }, never);
+		runningTurn(id)?.abort();
+		await settle();
+		const refused = await callTool(id, "send_to_user", { message: "part 2" }, never);
+		assert.equal(refused.isError, true);
+		assert.match(refused.text, /stopped your reply/);
+		const ok = await callTool(id, "send_to_user", { message: "after" }, never);
+		assert.ok(!ok.isError);
+		runningTurn(id)?.abort();
+		await settle();
+	});
+
+	it("validateArguments heals JSON-string options like the engine did", () => {
+		const probe = phaseTools("x", "prober").probe!;
+		const v = validateArguments(probe, { ...probeArgs, options: JSON.stringify(probeArgs.options) });
+		assert.ok(v.ok);
+	});
+
+	it("the Stop hook blocks a bare stop once, then lets Claude stop", async () => {
+		const id = newChat();
+		const hook = (body: object, token = bridgeToken()) =>
+			handleClaudeHook(new Request(`http://127.0.0.1/api/claude/hook?chat=${id}`, { method: "POST", headers: { authorization: `Bearer ${token}` }, body: JSON.stringify(body) }));
+		assert.equal((await hook({}, "wrong")).status, 401);
+		const first = (await (await hook({ session_id: "s1", stop_hook_active: false })).json()) as { decision?: string };
+		assert.equal(first.decision, "block");
+		const second = (await (await hook({ session_id: "s1", stop_hook_active: true })).json()) as { decision?: string };
+		assert.equal(second.decision, undefined);
+	});
+});

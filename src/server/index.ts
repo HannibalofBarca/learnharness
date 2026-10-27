@@ -45,3 +45,7 @@ export * from "./observability.ts";
 export * from "./model-catalog.ts";
 export { subscriptionControlsResponse, subscriptionBrowserResponse } from "./web-subscription-http.ts";
 export { sessionCost } from "./pricing.ts";
+// The Claude Code bridge (docs/claude-code-bridge.md).
+export { handleMcpRequest } from "./claude/mcp.ts";
+export { handleClaudeHook } from "./claude/hook.ts";
+export { claudeLaunch } from "./claude/launch.ts";
