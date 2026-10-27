@@ -67,7 +67,7 @@ import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, use
 import { NotesImportErrors, useNotesImport } from "@/components/notes-import.tsx";
 import Link from "next/link";
 import { FileTextIcon, ListTreeIcon, Loader2Icon, SearchIcon, SettingsIcon, UploadIcon, WaypointsIcon } from "lucide-react";
-import { incrementalLayout, propositionSessionHref, type GraphCostSummary, type GraphNode, type GraphSnapshot } from "@/src/core";
+import { incrementalLayout, propositionSessionHref, type GraphNode, type GraphSnapshot } from "@/src/core";
 import { planCostLabel } from "@/components/usage-format";
 import { GraphCanvasRenderer, type GraphRenderSettings } from "./graph-canvas.ts";
 import { usePopoverDismiss } from "@/components/popover-dismiss";
@@ -293,153 +293,6 @@ function timeAgo(startedAt: number): string {
 	return `${Math.round(hours / 24)}d`;
 }
 
-/** Run/stage cost at 3 decimals (pipeline pennies are real money at this
- *  scale); headline totals use 2. Null (unpriced model) renders "—". */
-function fmtRunCost(dollars: number | null, providers: readonly string[] = []): string {
-	return planCostLabel(dollars, providers, (value) => `$${value.toFixed(3)}`);
-}
-function graphProviders(value: { subscriptionRuns?: number; subscriptionProviders?: string[] }): string[] {
-	return value.subscriptionProviders ?? ((value.subscriptionRuns ?? 0) > 0 ? ["ChatGPT"] : []);
-}
-function graphUsageLabel(costs: Pick<GraphCostSummary, "stages">): string {
-	const stages = [costs.stages.extraction, costs.stages.audit];
-	const providers = [...new Set(stages.flatMap(graphProviders))];
-	const priced = stages.some((stage) => stage.runs - stage.unpricedRuns - (stage.subscriptionRuns ?? 0) > 0);
-	const dollars = displayCostTotals(costs).totalDollars;
-	return planCostLabel(priced ? dollars : null, providers, (value) => `$${value.toFixed(2)}`);
-}
-
-/**
- * The cost figures the UI DISPLAYS (owner refinement round, 2026-09-24):
- * extraction + audit only. Cluster naming is dead — labels are session
- * titles / file names — so the core's naming fold (and its historical
- * spend) is deliberately not shown anywhere: the pill and the panel must
- * agree, and both read THIS, never GraphCostSummary.totalDollars.
- * (The core fold's naming stage was then culled outright — 2026-09-24 —
- * so the recent-runs list carries extraction runs only.)
- */
-export function displayCostTotals(costs: Pick<GraphCostSummary, "stages">): {
-	totalDollars: number;
-	unpricedRuns: number;
-} {
-	// The two live stages (the spine came and went on one day,
-	// 2026-09-30 — digest-aware extraction replaced it).
-	return {
-		totalDollars: costs.stages.extraction.dollars + costs.stages.audit.dollars,
-		unpricedRuns: costs.stages.extraction.unpricedRuns + costs.stages.audit.unpricedRuns,
-	};
-}
-
-/**
- * The graph-pipeline cost control (2026-09-20 placement wave): a bare
- * cumulative-dollars number — no pill chrome (owner: "just a number"),
- * hover-highlighted, click toggles the breakdown panel. Same dismiss
- * pattern as the settings gear: outside click or Escape closes. The
- * panel is viewport-capped + scrollable like the coverage dropdown.
- */
-/** Exported for the chains home (graph rendering off, owner
- * 2026-10-06): the same bare cumulative-dollars pill + panel. */
-export function GraphCostControl({ costs }: { costs: GraphCostSummary }) {
-	const [open, setOpen] = useState(false);
-	// Click anywhere outside (or Escape) closes the panel — the root
-	// wraps button + panel, so the toggle itself keeps working.
-	const rootRef = useRef<HTMLDivElement>(null);
-	usePopoverDismiss(rootRef, open, () => setOpen(false));
-	return (
-		<div ref={rootRef} className="relative">
-			<Hint
-				// Trimmed (owner, subtlety round 2026-09-25).
-				label="Graph costs — click for details"
-				side="bottom"
-			>
-				<button
-				type="button"
-				aria-expanded={open}
-				onClick={() => setOpen((o) => !o)}
-				className={`rounded-lg px-2 py-1 text-xs tabular-nums transition-colors hover:bg-accent ${
-					open ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-				}`}
-			>
-				{graphUsageLabel(costs)}
-			</button>
-			</Hint>
-			{open && (
-				<div className="absolute right-0 top-full mt-2 max-h-[60vh] overflow-y-auto">
-					<GraphCostPanel costs={costs} />
-				</div>
-			)}
-		</div>
-	);
-}
-
-/**
- * The cost control's expanded panel: stage totals (extraction / audit —
- * dollars headline, tokens secondary) + the recent-runs list.
- * Presentational: the fold happens server-side (core/cost-summary.ts);
- * dollars are inferred read-time, never stored. Cluster naming is GONE
- * from the panel (owner refinement round, 2026-09-24): labels are session
- * titles / file names now, the namer is dead, and its historical spend is
- * not tracked anymore — the headline sums the displayed stages only and
- * naming-kind runs never reach the list.
- */
-function GraphCostPanel({ costs }: { costs: GraphCostSummary }) {
-	const stageRows: [string, GraphCostSummary["stages"]["extraction"]][] = [
-		["Extraction", costs.stages.extraction],
-		["Audit", costs.stages.audit],
-	];
-	// The displayed figures come from displayCostTotals (naming excluded —
-	// the pill and this panel must agree).
-	const { unpricedRuns } = displayCostTotals(costs);
-	return (
-		<div className="w-80 max-w-[calc(100vw-1.5rem)] rounded-xl border bg-card/95 p-3 text-xs shadow-lg backdrop-blur">
-			<div className="mb-2 flex items-baseline justify-between">
-				<span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-					Graph pipeline costs
-				</span>
-				<span className="text-foreground tabular-nums">
-					{graphUsageLabel(costs)}
-					{unpricedRuns > 0 && (
-						<span className="text-muted-foreground"> · {unpricedRuns} unpriced</span>
-					)}
-				</span>
-			</div>
-			<div className="flex flex-col gap-1">
-				{stageRows.map(([label, stage]) => (
-					<div key={label} className="flex items-baseline justify-between gap-2 text-[11px]">
-						<span className="shrink-0 text-muted-foreground">{label}</span>
-						<span className="min-w-0 text-right tabular-nums">
-							{fmtRunCost(stage.runs - stage.unpricedRuns - (stage.subscriptionRuns ?? 0) <= 0 ? null : stage.dollars, graphProviders(stage))}
-							{stage.unpricedRuns > 0 && (stage.runs - stage.unpricedRuns - (stage.subscriptionRuns ?? 0) > 0 || (stage.subscriptionRuns ?? 0) > 0) && (
-								<span className="text-muted-foreground"> +{stage.unpricedRuns} unpriced</span>
-							)}
-							<span className="text-muted-foreground">
-								{" "}
-								· {fmtTokens(stage.tokens.inputTokens)} in / {fmtTokens(stage.tokens.outputTokens)} out
-							</span>
-						</span>
-					</div>
-				))}
-			</div>
-			<div className="mt-2 flex flex-col gap-0.5 border-t pt-2">
-				{costs.runs.map((run) => (
-						<div key={run.startedAt} className="flex items-baseline justify-between gap-2 text-[11px]">
-							<span className="min-w-0 flex-1 truncate text-muted-foreground">
-								<span className="text-foreground/70">{timeAgo(run.startedAt)}</span>{" "}
-								{run.title}
-								{run.merged && (
-									<span className="text-muted-foreground">
-										{" "}
-										+{run.merged.nodes}n
-									</span>
-								)}
-							</span>
-							<span className="shrink-0 tabular-nums">{fmtRunCost(run.dollars, graphProviders(run))}{run.dollars === null && run.subscriptionRuns === 1 ? " +1 unpriced" : ""}</span>
-						</div>
-					))}
-			</div>
-		</div>
-	);
-}
 
 /**
  * The rendering-settings gear + its collapsible panel (owner, graph-view
@@ -1163,48 +1016,17 @@ export function GraphView({
 		};
 	}, [readPipelineStatus]);
 
-	// Graph pipeline costs (2026-09 cost metrics wave): the cumulative fold
-	// of the usage channels (chat + notes extraction runs; the dead namer's
-	// channel is not displayed anymore, owner 2026-09-24)
-	// behind the bottom-left cost pill. Fetched once on mount and refetched
-	// when a pipeline run finishes (running -> none) so fresh spend lands
-	// without a manual reload. Best-effort: a fetch failure never blocks
-	// the view — the pill just stays on its last numbers.
-	const [costs, setCosts] = useState<GraphCostSummary | null>(null);
-	const refreshCosts = useCallback(() => {
-		fetch("/api/graph/costs")
-			.then((res) => res.json() as Promise<GraphCostSummary>)
-			.then(setCosts)
-			.catch(() => {});
-	}, []);
-	useEffect(() => {
-		refreshCosts();
-	}, [refreshCosts]);
-	// The same disappearance rule as the snapshot refresh (owner
-	// 2026-09-28): usage persists per JOB (per-chunk jobs), so costs refresh
-	// per job row — not only when the whole feed drains.
-	const prevRunIds = useRef(new Set<string>());
-	useEffect(() => {
-		const gone = [...prevRunIds.current].some((id) => !pipelineRuns.some((r) => r.id === id));
-		if (gone && prevRunIds.current.size > 0) refreshCosts();
-		prevRunIds.current = new Set(pipelineRuns.map((r) => r.id));
-	}, [pipelineRuns, refreshCosts]);
-
 	/* Deletion refresh (wave 6 chunk A): the DELETE /api/chats/:id response
 	   carries the new graphRevision, and the sidebar (which owns the delete
 	   flow) announces it as lh:graph-revision. The status poll above can't
 	   see a deletion — no pipeline run ever disappears from the feed for
-	   it — so this event is the one seam. Refetch the snapshot and the
-	   costs on every announcement: deletions are rare, a redundant fetch
-	   is free. */
+	   it — so this event is the one seam. Refetch the snapshot on every
+	   announcement. */
 	useEffect(() => {
-		const onRevision = () => {
-			setRefreshTick((t) => t + 1);
-			refreshCosts();
-		};
+		const onRevision = () => setRefreshTick((t) => t + 1);
 		window.addEventListener("lh:graph-revision", onRevision);
 		return () => window.removeEventListener("lh:graph-revision", onRevision);
-	}, [refreshCosts]);
+	}, []);
 
 	/* Live rename labels (rename-shuffle fix, 2026-09-23): a session
 	   rename anywhere (sidebar inline row, chat header) announces itself
@@ -1623,7 +1445,6 @@ export function GraphView({
 			    row so narrow windows can never push it over the composer
 			    the way the old bottom-left stack did; the whole top-right
 			    cluster is one column, right-aligned. */}
-			{costs && costs.runs.length > 0 && <GraphCostControl costs={costs} />}
 			{pipelineRuns.map((run) => (
 				<div
 					key={run.id}
