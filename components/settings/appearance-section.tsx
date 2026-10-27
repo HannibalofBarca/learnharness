@@ -40,7 +40,7 @@ import {
 import { MenuShell } from "@/components/menu-shell";
 import { Hint } from "@/components/ui/hint";
 import { useAppearance } from "./appearance.tsx";
-import { FontMenuList } from "./model-menu";
+import { FontMenuList } from "./font-menu";
 import { CommitInput, SettingsRow, ThinSelect, Toggle } from "./controls.tsx";
 
 /** The factory reading family — the DEFAULT row's identity (unset =

@@ -5,9 +5,7 @@ import { useRouter } from "next/navigation";
 import { CornerDownLeftIcon, DumbbellIcon } from "lucide-react";
 import { GraphView } from "@/components/graph-view";
 import { MinimalHome } from "@/components/minimal-home";
-import { SetupDialog } from "@/components/setup-dialog";
 import { ComposerActions, NodePickerControl } from "@/components/composer-actions";
-import { useStrongKeyless, useZeroKeys, ZeroKeysPill } from "@/components/setup-cta";
 import { DictationBar, joinDictation, useDictation } from "@/components/dictation";
 import { useFieldCycle } from "@/components/field-cycle";
 import { SidebarToggle } from "@/components/sidebar";
@@ -37,20 +35,6 @@ export function Home({
 	 * dictation flush lands via setState, invisible to a closure that
 	 * waited through `await finish()`. Kept current at every write. */
 	const topicRef = useRef("");
-	// First-run gate (model-slots wave, owner 2026-09-20): chats cannot
-	// start until the user has picked all three slots — no defaults for
-	// 33 providers. The dock shows the CTA while unconfigured; submitting
-	// a topic opens the setup dialog WITH THE DRAFT PRESERVED (Save
-	// stores the slots and the queued message sends).
-	const [configured, setConfigured] = useState(initialConfigured);
-	// The zero-keys truth (zero-keys wave): no provider key = the pill
-	// takes precedence over the models CTA (keys come first in the chain).
-	const zeroKeys = useZeroKeys();
-	// The strong slot's keyless truth (pre-send key guards, owner interlude
-	// 2026-09-25): keys may exist generally while the STRONG slot's pinned
-	// provider has none — the same skip-everything treatment on send.
-	const strongKeyless = useStrongKeyless();
-	const [setupOpen, setSetupOpen] = useState(false);
 	// Voice dictation (STT wave, 2026-09-17): finals append at the end of the
 	// topic draft; the strip lives in the stats bar's middle slot.
 	const dictation = useDictation({
@@ -113,23 +97,6 @@ export function Home({
 	const begin = async () => {
 		const t = topicRef.current.trim();
 		if (!t || busy) return;
-		// Unconfigured: the send INTERCEPTS into the setup flow (the draft
-		// stays in the textarea; the learner sends it after Save).
-		if (!configured) {
-			setSetupOpen(true);
-			return;
-		}
-		// The pre-send KEY guards (owner interlude, no-orphan-chats): the
-		// models case guards BEFORE creation; the key cases must too — a
-		// refused first send would otherwise leave an orphan error-shell
-		// chat in the sidebar (the 503 lands only after POST /api/chats
-		// already created the record). Same skip-everything-and-open-setup
-		// treatment; the server's 503 gate remains the belt for /chat/[id]
-		// sessions.
-		if (zeroKeys || strongKeyless) {
-			setSetupOpen(true);
-			return;
-		}
 		setBusy(true);
 		try {
 			// The map context (owner, 2026-10-04): picks in EITHER mode ride
@@ -226,20 +193,6 @@ export function Home({
 								onClear={() => setPracticeProps([])}
 							/>
 						)}
-						setup={zeroKeys ? (
-							<ZeroKeysPill inline onOpen={() => setSetupOpen(true)} />
-						) : (
-							!configured && (
-								<button
-									type="button"
-									data-testid="setup-cta"
-									onClick={() => setSetupOpen(true)}
-									className="rounded-sm border border-border bg-card px-3 py-1.5 font-ui text-xs text-foreground transition-colors hover:border-muted-foreground/50 hover:bg-accent cursor-pointer"
-								>
-									Set up your models
-								</button>
-							)
-						)}
 					/>
 					<form
 						className="flex items-end gap-1.5 rounded-2xl border bg-card p-1.5 shadow-lg"
@@ -318,19 +271,6 @@ export function Home({
 				</div>
 			</div>
 
-			{/* First-run setup (unconfigured): the CTA's target and the send
-			    interception's landing surface — stage 1 is the self-contained
-			    first-key screen (zero-keys wave); Save never sends — the
-			    draft stays for the learner to send (owner 2026-10-09). */}
-			<SetupDialog
-				open={setupOpen}
-				onClose={() => setSetupOpen(false)}
-				onDone={() => {
-					setConfigured(true);
-					setSetupOpen(false);
-					// Save only saves: the draft waits in the composer.
-				}}
-				/>
 		</div>
 	);
 }

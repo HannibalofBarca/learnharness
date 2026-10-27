@@ -36,18 +36,6 @@ export const AUTH_KEYS: readonly AuthKeyInfo[] = [
 		description: "Speech-to-text key for dictation — needs ≥ Member permission in the Deepgram console to mint tokens.",
 		docsUrl: "https://console.deepgram.com/",
 	},
-	{
-		id: "TAVILY_API_KEY",
-		label: "Tavily",
-		description: "Web-search engine for the researcher sub-agent (AI-native search API). Setting the key activates it — no engine toggle needed.",
-		docsUrl: "https://app.tavily.com/",
-	},
-	{
-		id: "BRAVE_API_KEY",
-		label: "Brave Search",
-		description: "Web-search engine for the researcher sub-agent — the alternative to Tavily. Setting the key activates it.",
-		docsUrl: "https://brave.com/search/api/",
-	},
 ] as const;
 
 const AUTH_KEY_IDS: ReadonlySet<string> = new Set(AUTH_KEYS.map((k) => k.id));
@@ -66,61 +54,12 @@ export interface AuthProviderInfo {
 }
 
 /**
- * THE MODEL-PROVIDER KEY TABLE (provider-keys interlude, 2026-09-19):
- * every pi-ai provider that takes a PLAIN api-key env var — derived from
- * pi-ai's own provider→env-var table at generation time, so it can never
- * drift from what pi actually reads: tests/auth-provider-keys.test.ts
- * re-derives the truth from pi-ai (builtinProviders + findEnvKeys via a
- * truthy-for-every-var proxy env) and asserts EXACT equality with this
- * table — a pi-ai upgrade that adds/renames a provider key fails the gate
- * loudly instead of drifting silently.
- *
- * EXCLUDED by owner spec — providers whose auth is not a plain key this
- * wave: github-copilot (OAuth), amazon-bedrock (AWS creds), google-vertex
- * (ADC), azure (needs a base URL), the cloudflare
- * account-scoped pair. Anthropic keeps ANTHROPIC_API_KEY only — its
- * AUTH_TOKEN/OAUTH_TOKEN alternates stay env-only. openai-codex exposes
- * no env-key (naturally absent). Providers sharing one env var (moonshotai
- * / moonshotai-cn, opencode / opencode-go, the qwen-token-plan pair,
- * xiaomi variants) each keep their own row — the UI groups as it wishes.
+ * THE MODEL-PROVIDER KEY TABLE — empty under the Claude Code bridge
+ * (docs/claude-code-bridge.md): the tutor's model is the learner's own
+ * Claude Code, so the app stores no model-provider keys. Kept as a table
+ * (rather than deleted) so the key routes' writability rule stays one rule.
  */
-export const AUTH_PROVIDER_KEYS: readonly AuthProviderInfo[] = [
-	{ id: "ant-ling", envVar: "ANT_LING_API_KEY", label: "Ant Ling" },
-	{ id: "anthropic", envVar: "ANTHROPIC_API_KEY", label: "Anthropic" },
-	{ id: "baseten", envVar: "BASETEN_API_KEY", label: "Baseten" },
-	{ id: "cerebras", envVar: "CEREBRAS_API_KEY", label: "Cerebras" },
-	{ id: "deepseek", envVar: "DEEPSEEK_API_KEY", label: "DeepSeek" },
-	{ id: "fireworks", envVar: "FIREWORKS_API_KEY", label: "Fireworks" },
-	{ id: "google", envVar: "GEMINI_API_KEY", label: "Google" },
-	{ id: "groq", envVar: "GROQ_API_KEY", label: "Groq" },
-	{ id: "huggingface", envVar: "HF_TOKEN", label: "Hugging Face" },
-	{ id: "kimi-coding", envVar: "KIMI_API_KEY", label: "Kimi For Coding" },
-	{ id: "meta", envVar: "META_API_KEY", label: "Meta" },
-	{ id: "minimax", envVar: "MINIMAX_API_KEY", label: "MiniMax" },
-	{ id: "minimax-cn", envVar: "MINIMAX_CN_API_KEY", label: "MiniMax CN" },
-	{ id: "mistral", envVar: "MISTRAL_API_KEY", label: "Mistral" },
-	{ id: "moonshotai", envVar: "MOONSHOT_API_KEY", label: "Moonshot AI" },
-	{ id: "moonshotai-cn", envVar: "MOONSHOT_API_KEY", label: "Moonshot AI CN" },
-	{ id: "nvidia", envVar: "NVIDIA_API_KEY", label: "NVIDIA" },
-	{ id: "openai", envVar: "OPENAI_API_KEY", label: "OpenAI" },
-	{ id: "opencode", envVar: "OPENCODE_API_KEY", label: "OpenCode Zen" },
-	{ id: "opencode-go", envVar: "OPENCODE_API_KEY", label: "OpenCode Go" },
-	{ id: "openrouter", envVar: "OPENROUTER_API_KEY", label: "OpenRouter" },
-	{ id: "qwen-token-plan", envVar: "QWEN_TOKEN_PLAN_API_KEY", label: "Qwen Token Plan" },
-	{ id: "qwen-token-plan-cn", envVar: "QWEN_TOKEN_PLAN_CN_API_KEY", label: "Qwen Token Plan CN" },
-	{ id: "qwen-token-plan-individual", envVar: "QWEN_TOKEN_PLAN_API_KEY", label: "Qwen Token Plan Individual" },
-	{ id: "radius", envVar: "RADIUS_API_KEY", label: "Radius" },
-	{ id: "together", envVar: "TOGETHER_API_KEY", label: "Together" },
-	{ id: "typesafe", envVar: "TYPESAFE_API_KEY", label: "TypeSafe" },
-	{ id: "vercel-ai-gateway", envVar: "AI_GATEWAY_API_KEY", label: "Vercel AI Gateway" },
-	{ id: "xai", envVar: "XAI_API_KEY", label: "xAI" },
-	{ id: "xiaomi", envVar: "XIAOMI_API_KEY", label: "Xiaomi" },
-	{ id: "xiaomi-token-plan-ams", envVar: "XIAOMI_TOKEN_PLAN_AMS_API_KEY", label: "Xiaomi Token Plan AMS" },
-	{ id: "xiaomi-token-plan-cn", envVar: "XIAOMI_TOKEN_PLAN_CN_API_KEY", label: "Xiaomi Token Plan CN" },
-	{ id: "xiaomi-token-plan-sgp", envVar: "XIAOMI_TOKEN_PLAN_SGP_API_KEY", label: "Xiaomi Token Plan SGP" },
-	{ id: "zai", envVar: "ZAI_API_KEY", label: "Z.AI" },
-	{ id: "zai-coding-cn", envVar: "ZAI_CODING_CN_API_KEY", label: "Z.AI Coding CN" },
-] as const;
+export const AUTH_PROVIDER_KEYS: readonly AuthProviderInfo[] = [];
 
 /** Every distinct env var a model-provider key rides in (the write side's
  *  writability check — see isProviderEnvVar below; also drives which
