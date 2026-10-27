@@ -15,7 +15,7 @@
 
 import { randomUUID } from "node:crypto";
 import { Type } from "typebox";
-import type { AgentTool } from "@earendil-works/pi-agent-core";
+import type { AgentTool } from "../../core/agent-types.ts";
 import { getHeadless, providerSafePng } from "../../agent/subagents/headless.ts";
 import { buildSubagentSteer, type DemoResult, type JobKind, type PdfResult, type ResearchResult, type VisualResult } from "../../core/contracts.ts";
 import { newMessageId, type LhMessage } from "../../core/native-messages.ts";

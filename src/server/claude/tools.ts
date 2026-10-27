@@ -17,7 +17,7 @@ import { randomUUID } from "node:crypto";
 import { Type, type TSchema } from "typebox";
 import { Compile } from "typebox/compile";
 import { Value } from "typebox/value";
-import type { AgentTool, AgentToolResult } from "@earendil-works/pi-agent-core";
+import type { AgentTool, AgentToolResult } from "../../core/agent-types.ts";
 import { createProberTools, createTeacherTools } from "../../agent/tools.ts";
 import { practiceTools } from "../../agent/tools/practice.ts";
 import { sendToUserTool } from "../../agent/tools/send-to-user.ts";

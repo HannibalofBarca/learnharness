@@ -33,8 +33,8 @@
  * question gate holds steers; a POST would 409).
  */
 
-import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import type { AssistantMessage, Message, ToolResultMessage, UserMessage } from "@earendil-works/pi-ai";
+import type { AgentMessage } from "./agent-types.ts";
+import type { AssistantMessage, Message, ToolResultMessage, UserMessage } from "./agent-types.ts";
 import { QUESTION_TOOLS } from "./pending.ts";
 import {
 	CONCLUDE_ACK_TEXT,
@@ -83,11 +83,6 @@ export interface LhMarkerMessage {
 	timestamp: number;
 }
 
-declare module "@earendil-works/pi-agent-core" {
-	interface CustomAgentMessages {
-		lhMarker: LhMarkerMessage;
-	}
-}
 
 /** A record message: a native pi message (or our marker) plus the record id. */
 export type LhMessage = (UserMessage | AssistantMessage | ToolResultMessage | LhMarkerMessage) & { id: string };
@@ -729,7 +724,7 @@ export type NativeInputCause = "learner" | "automatic" | "neutral" | "unrecogniz
 /** Native causes only: flattened user roles, IDs' prefixes and prose confer no permission. */
 export function nativeInputCause(message: AgentMessage, history: readonly AgentMessage[]): NativeInputCause {
 	if (message.role === "user") return "learner";
-	if (message.role === "system" || message.role === "assistant") return "neutral";
+	if (message.role === "assistant") return "neutral";
 	if (message.role === "custom") {
 		if (["probe-handoff", "subagent-steer", "subagent-abort"].includes(message.customType)) return "automatic";
 		if (["practice-thinking", "practice-next"].includes(message.customType)) return "learner";

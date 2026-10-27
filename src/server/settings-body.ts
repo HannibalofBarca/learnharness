@@ -11,7 +11,7 @@
  * a different concern and are preserved by the sanitizer (core/settings.ts).
  */
 
-import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+import type { ThinkingLevel } from "../core/agent-types.ts";
 import { isHexColor, type ChatSettings } from "../core";
 import type {
 	AgentSettings,

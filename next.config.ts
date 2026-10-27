@@ -56,9 +56,7 @@ const nextConfig: NextConfig = {
 	},
 	// Empirically verified gaps (2026-09-17 standalone smoke): the tracer
 	// misses JSON loaded via `import ... with { type: "json" }` attributes —
-	// pi-ai's provider catalog (39 JSON files) vanished from the trace and
-	// the server 500s on module load. Include the whole data dirs of the
-	// runtime-loaded engine packages.
+	// runtime-loaded data directories must be included explicitly.
 	// pdfjs-dist (sources v0 live smoke, 2026-09-19): its legacy build loads
 	// the node fake worker (pdf.worker.mjs) and our standard_fonts dir via
 	// runtime-resolved paths — invisible to the tracer. Bundling (without
@@ -81,29 +79,10 @@ const nextConfig: NextConfig = {
 			// Wave E stage 2: resvg rasterizes visual-maker SVGs natively; same
 			// per-platform-binary story as the canvas above (one per build).
 			"node_modules/@resvg/resvg-js-*/**/*",
-			"node_modules/@earendil-works/pi-ai/dist/providers/data/**/*",
-			// Public native OAuth factories load these flows through variable imports.
-			// Electron main uses the same standalone SDK; the offline runtime gate
-			// evaluates their real toAuth paths without login or provider requests.
-			"node_modules/@earendil-works/pi-ai/dist/auth/oauth/{load,github-copilot,xai,device-code}.js",
-			"node_modules/@earendil-works/pi-ai/dist/utils/sleep.js",
-			"node_modules/@earendil-works/pi-agent-core/dist/**/*.json",
-			// Next 16.3.2 native Turbopack applies unanchored excludes while
-			// traversing modules; **/data/**/* still prunes gcp-metadata and
-			// its private runtime chain. Includes are applied after traversal.
-			// This is the verified GoogleAuth closure, not a general dep copy;
-			// the offline native Pi gate must catch future SDK closure changes.
-			"node_modules/gcp-metadata/**/*",
-			"node_modules/json-bigint/**/*",
-			"node_modules/bignumber.js/**/*",
 		],
 	},
 	// Framework-free core lives in src/ (plain TS, imported by routes and CLI alike).
-	// The pi engine must stay external: its providers are runtime-loaded Node
-	// code (undici streams, catalog data) that breaks when bundled into routes.
 	serverExternalPackages: [
-		"@earendil-works/pi-ai",
-		"@earendil-works/pi-agent-core",
 		"pdfjs-dist", // sources v0: bundling breaks its node fake-worker path
 		"@napi-rs/canvas", // native binding — bundling breaks the .node require
 		"@resvg/resvg-js", // native binding — same

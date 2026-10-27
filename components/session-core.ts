@@ -13,8 +13,8 @@
  * ready | submitted | streaming | error.
  */
 
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
-import type { ToolResultMessage } from "@earendil-works/pi-ai";
+import type { AgentEvent } from "@/src/core/agent-types";
+import type { ToolResultMessage } from "@/src/core/agent-types";
 import {
 	needsContinuation,
 	danglingQuestionOf,

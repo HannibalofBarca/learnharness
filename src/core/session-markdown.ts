@@ -29,7 +29,7 @@ import {
 	SEND_TO_USER_TOOL,
 	userFacingTextOf,
 } from "./native-messages.ts";
-import type { ToolResultMessage } from "@earendil-works/pi-ai";
+import type { ToolResultMessage } from "./agent-types.ts";
 
 /** The practice join context (owner-approved, 2026-10-06 export round):
  *  practice tool RESULTS are acks — the statement, outcome, and verdict

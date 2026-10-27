@@ -1,4 +1,4 @@
-import type { AssistantMessage } from "@earendil-works/pi-ai";
+import type { AssistantMessage } from "./agent-types.ts";
 import type { LhMessage } from "./native-messages.ts";
 
 /** Latest completed conversation measurement, never a request-size estimate.

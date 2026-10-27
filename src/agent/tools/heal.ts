@@ -22,7 +22,7 @@
  * wrapper is a harmless second pass.
  */
 
-import type { AgentTool } from "@earendil-works/pi-agent-core";
+import type { AgentTool } from "../../core/agent-types.ts";
 import { healEncodedArguments } from "../../core/argument-heal.ts";
 
 export { healEncodedArguments };

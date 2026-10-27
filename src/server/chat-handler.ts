@@ -1,4 +1,4 @@
-import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import type { AgentMessage } from "../core/agent-types.ts";
 import { runPiTurn } from "./pi/ui-stream.ts";
 import { stores } from "./stores.ts";
 import { beginTurn, endTurn, isTurnRunning } from "./turn-liveness.ts";

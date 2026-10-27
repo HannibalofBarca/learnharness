@@ -17,7 +17,7 @@
  * resolves when Claude blocks again (or the learner stops the turn).
  */
 
-import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
+import type { AgentEvent, AgentMessage } from "../../core/agent-types.ts";
 
 type Listener = (event: AgentEvent) => void;
 

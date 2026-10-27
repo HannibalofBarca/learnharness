@@ -25,13 +25,9 @@
  */
 
 const { app, BrowserWindow, Menu, ipcMain, session, shell } = require("electron");
-const { createChatGPT, fileStore } = require("./chatgpt.cjs");
-const { attachChatGPTChild, trustedSender, chatGPTControl } = require("./chatgpt-ipc.cjs");
-const { createSubscriptions, loadSubscriptionSDK } = require("./subscriptions.cjs");
-const { attachSubscriptionChild, subscriptionControl } = require("./subscription-ipc.cjs");
+const { trustedSender } = require("./ipc-trust.cjs");
 const { desktopAPIHeaders } = require("./desktop-api.cjs");
 const { createTerminalHost } = require("./claude-terminal.cjs");
-const { openWebSubscriptionBrowser } = require("./web-subscription-browser.cjs");
 const { randomBytes } = require("node:crypto");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
@@ -136,10 +132,6 @@ if (process.argv.includes("--browser-service")) {
 }
 
 let serverProcess = null;
-let chatgpt = null;
-let chatgptChild = null;
-let subscriptions = null;
-let subscriptionChild = null;
 // Per-launch request capability, never OAuth tokens and never renderer state.
 let desktopAPISecret = null;
 let reopenWindow = null;
@@ -228,20 +220,12 @@ function startServer(port) {
 			},
 		);
 		serverProcess = child;
-		chatgptChild = attachChatGPTChild(child, chatgpt);
-		subscriptionChild = attachSubscriptionChild(child, subscriptions);
 		const fwd = (buf) => buf.toString().trimEnd().split("\n").forEach((l) => l && log(`server: ${l}`));
 		child.stdout.on("data", fwd);
 		child.stderr.on("data", fwd);
 		child.on("exit", (code, signal) => {
 			log(`server exited (code=${code} signal=${signal})`);
 			serverProcess = null;
-			chatgptChild?.dispose();
-			chatgptChild = null;
-			subscriptionChild?.dispose();
-			subscriptionChild = null;
-			chatgpt?.close();
-			subscriptions?.close();
 		});
 		resolve(child);
 	});
@@ -265,8 +249,6 @@ function waitUntilUp(url, tries = 150) {
 }
 
 function killServer() {
-	chatgpt?.close();
-	subscriptions?.close();
 	if (!serverProcess) return;
 	const child = serverProcess;
 	serverProcess = null;
@@ -317,7 +299,6 @@ function createWindow(url) {
 			contextIsolation: true,
 			sandbox: true,
 			nodeIntegration: false,
-			...(process.env.LH_DEV_URL ? { additionalArguments: ["--lh-web-subscriptions"] } : {}),
 			preload: path.join(__dirname, "preload.cjs"),
 		},
 		// Live-resize + first-paint flash (owner, 2026-09-17): during a resize
@@ -634,8 +615,6 @@ function installMenu() {
 
 async function main() {
 	app.on("window-all-closed", () => {
-		chatgpt?.pause();
-		subscriptions?.pause();
 		// macOS convention: the app stays resident, reactivated from the Dock.
 		if (process.platform !== "darwin") app.quit();
 	});
@@ -659,56 +638,14 @@ async function main() {
 		session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ["<all_urls>"] }, (details, callback) => {
 			callback({ requestHeaders: desktopAPIHeaders(details, ownedOrigin, desktopAPISecret, [...trustedAppWindows]) });
 		});
-		chatgpt = createChatGPT({
-			store: fileStore(path.join(app.getPath("userData"), "chatgpt-credentials.json")),
-			openExternal: (target) => shell.openExternal(target),
-			onChange: (value) => {
-				chatgptChild?.send(value);
-				for (const win of BrowserWindow.getAllWindows()) win.webContents.send("lh:chatgpt:changed");
-			},
-		});
-		subscriptions = createSubscriptions({
-			directory: app.getPath("userData"),
-			loadSDK: () => loadSubscriptionSDK(path.dirname(serverEntry())),
-			openExternal: (target) => shell.openExternal(target),
-			onChange: (snapshot) => {
-				subscriptionChild?.send(snapshot);
-				for (const win of BrowserWindow.getAllWindows()) win.webContents.send("lh:subscriptions:changed");
-			},
-		});
-		await subscriptions.ready;
 		log(`starting server: ${serverEntry()}`);
-		log(`data dir: ${DATA_DIR()}${fs.existsSync(AUTH_FILE()) ? " · auth.json: present" : " · auth.json: ABSENT (no BYOK keys yet)"}`);
+		log(`data dir: ${DATA_DIR()}`);
 		await startServer(new URL(url).port);
 		await waitUntilUp(url);
 		log(`server up: ${url}`);
 	} else {
 		log(`dev mode: ${devUrl}`);
 	}
-
-	// Renderer controls contain no token/URL/code operation. The separate server
-	// child is the only recipient of credential leases over inherited IPC.
-	ipcMain.handle("lh:chatgpt:control", async (event, command) => {
-		if (!trustedAppWindows.has(BrowserWindow.fromWebContents(event.sender)) || !trustedSender(event, new URL(url).origin, BrowserWindow)) return { error: "Untrusted desktop request." };
-		if (!chatgpt || !serverProcess?.connected) return { available: false, pending: false, activeId: null, accounts: [], error: "ChatGPT sign-in requires the desktop app's private server connection. Browser-only and externally launched development servers keep API-key connections." };
-		return chatGPTControl(command, chatgpt);
-	});
-
-	ipcMain.handle("lh:subscriptions:control", async (event, command) => {
-		if (!trustedAppWindows.has(BrowserWindow.fromWebContents(event.sender)) || !trustedSender(event, new URL(url).origin, BrowserWindow)) throw new Error("Untrusted desktop request.");
-		if (!subscriptions || !serverProcess?.connected) {
-			if (command?.op === "status") return [];
-			throw new Error("Subscription sign-in requires the desktop app's private server connection.");
-		}
-		return subscriptionControl(command, subscriptions);
-	});
-
-	// The dev shell has no browser tabs. Only a one-use action on its own
-	// Next server may be resolved here; never accept an arbitrary external URL.
-	ipcMain.handle("lh:subscriptions:web-browser", async (event, action) => {
-		if (!devUrl || !trustedAppWindows.has(BrowserWindow.fromWebContents(event.sender)) || !trustedSender(event, new URL(url).origin, BrowserWindow)) throw new Error("Untrusted development request.");
-		await openWebSubscriptionBrowser(action, new URL(url).origin, { openExternal: (target) => shell.openExternal(target) });
-	});
 
 	// The embedded tutor terminal (docs/claude-code-bridge.md): one pty per
 	// session, launched with the server's pre-wired Claude Code argv.
@@ -761,7 +698,7 @@ async function main() {
 		const target = SIDEBAR_AUTOCLOSE;
 		if (width < target) win.setBounds({ x, y, width: target, height });
 	});
-	reopenWindow = () => { chatgpt?.resume(); subscriptions?.resume(); return createWindow(url); };
+	reopenWindow = () => createWindow(url);
 	app.on("activate", () => {
 		if (BrowserWindow.getAllWindows().length === 0) reopenWindow();
 	});

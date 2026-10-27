@@ -38,8 +38,8 @@ import { derivePlanStatusesLh, derivedNodeStatus } from "./contracts/plan.ts";
 import { COMPACTED_HISTORY_HEADER } from "./contracts/chat.ts";
 import type { LhMessage, LhMarkerMessage } from "./native-messages.ts";
 import { newMessageId } from "./native-messages.ts";
-import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import type { AssistantMessage, ToolResultMessage, SystemMessage } from "@earendil-works/pi-ai";
+import type { AgentMessage } from "./agent-types.ts";
+import type { AssistantMessage, ToolResultMessage, SystemMessage } from "./agent-types.ts";
 
 // ─── constants (the tunables, owner-approved) ────────────────────────────────
 
@@ -100,11 +100,6 @@ export function estimateMessageTokens(message: LhMessage | AgentMessage): number
 		}
 	} else {
 		chars += textCharsOfContent(content);
-		if (message.role === "system") {
-			const system = message as SystemMessage;
-			for (const section of Object.values(system.sections ?? {})) chars += section?.length ?? 0;
-			if (system.toolsAdded) chars += JSON.stringify(system.toolsAdded).length;
-		}
 	}
 	return Math.ceil(chars / 4);
 }

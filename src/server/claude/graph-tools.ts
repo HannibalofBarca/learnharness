@@ -19,7 +19,7 @@ import * as crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { PATHS } from "../../../config.ts";
-import type { AgentTool } from "@earendil-works/pi-agent-core";
+import type { AgentTool } from "../../core/agent-types.ts";
 import { Type, type TSchema } from "typebox";
 import {
 	asSessionFindings,

@@ -1,4 +1,13 @@
-import type { Agent, AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
+import type { AgentEvent, AgentMessage } from "../../core/agent-types.ts";
+
+/** What the turn runner drives: the bridge's BridgeAgent
+ *  (src/server/claude/session.ts) — state, events, run-to-settle, abort. */
+export interface TurnAgent {
+	state: { messages: AgentMessage[] };
+	subscribe(listener: (event: AgentEvent) => void): unknown;
+	continue(): Promise<void>;
+	abort(): void;
+}
 import { ToolCallIdUniquifier } from "./call-ids.ts";
 
 /**
@@ -70,7 +79,7 @@ export type TurnWireEvent =
 
 export interface PiTurnSpec {
 	/** The per-turn agent (stateless engine — built from the record). */
-	agent: Agent;
+	agent: TurnAgent;
 	/** The handler's error-masking policy for LOOP-level failures (the
 	 *  event stream itself is verbatim — provider errors ride their
 	 *  message's stopReason/errorMessage through untouched). */
