@@ -138,7 +138,7 @@ describe("desktop packaging policy", () => {
 			{ target: "AppImage", arch: ["x64"] }, { target: "deb", arch: ["x64"] },
 		]);
 		assert.equal(config.linux.syncDesktopName, true);
-		assert.equal(config.publish[0].releaseType, "draft");
+		assert.equal(config.publish, null, "no update feed in this fork");
 	});
 
 	it("deb has public maintainer metadata and a matching desktop identity", () => {

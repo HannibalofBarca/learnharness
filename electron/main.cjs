@@ -486,6 +486,14 @@ function installUpdateNow() {
 }
 
 function setupAutoUpdater() {
+	// ClaudeHarness fork (docs/claude-code-bridge.md): updates are OFF for
+	// good. The inherited feed is the upstream LearnHarness repository —
+	// accepting it would replace this fork with the original app.
+	if (process.env.LH_UPDATE_FEED === undefined) {
+		log("auto-update: disabled in this fork");
+		reportUpdateStatus("disabled");
+		return;
+	}
 	if (!app.isPackaged) {
 		log("auto-update: dev build — updater disabled");
 		reportUpdateStatus("disabled");
