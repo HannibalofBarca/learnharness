@@ -7,6 +7,7 @@ import {
 	capOutput,
 	formatSize,
 	GREP_MAX_LINE_LENGTH,
+	assertNotProtected,
 	isBinaryFile,
 	matchGlob,
 	MAX_OUTPUT_BYTES,
@@ -75,6 +76,7 @@ export const grepTool: AgentTool<typeof grepInput> = {
 		let timedOut = false;
 		let aborted = false;
 		if (!isDirectory) {
+			await assertNotProtected(searchPath);
 			files.push(searchPath);
 		} else {
 			const result = await walkFiles(

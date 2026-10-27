@@ -1,3 +1,13 @@
+> **Fork note — key hardening.** This fork of [amosblomqvist/learnharness](https://github.com/amosblomqvist/learnharness) adds:
+>
+> - **Agent can't read secrets.** `read` / `ls` / `find` / `grep` / the PDF reader refuse the key store (`auth.json` / `LH_AUTH_FILE`), subscription login files (`*-credentials.json`) and any `.env*` file — enforced in code, symlinks resolved.
+> - **Dev server is local-only.** `npm run dev` / `npm start` / `desktop:dev` bind to `127.0.0.1`.
+> - **Browser-mode API gate.** Without the desktop secret, `/api/*` requires a loopback `Host` and same-origin `Origin` / `Sec-Fetch-Site` — blocks other websites and DNS rebinding.
+>
+> Tests: `tests/secret-guard.test.ts`.
+
+---
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/lh_banner_dark.png">

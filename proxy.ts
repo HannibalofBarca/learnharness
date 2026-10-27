@@ -7,7 +7,7 @@ import { desktopAPIAuthorized } from "./src/server/desktop-access.ts";
 export function proxy(request: NextRequest) {
 	if (!desktopAPIAuthorized(request.headers)) {
 		return NextResponse.json(
-			{ error: "Desktop API access requires the trusted LearnHarness window." },
+			{ error: "API access requires the trusted LearnHarness window on this machine." },
 			{ status: 403, headers: { "Cache-Control": "no-store" } },
 		);
 	}

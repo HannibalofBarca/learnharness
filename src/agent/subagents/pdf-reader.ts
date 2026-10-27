@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { AssistantMessage, Message, ToolResultMessage, Usage, Tool } from "@earendil-works/pi-ai";
 import { normalizeContext } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
-import { resolveSourcePath } from "../tools/fs-shared.ts";
+import { isProtectedPath, resolveSourcePath } from "../tools/fs-shared.ts";
 import { piEngineFor, type PiEngine, type ThinkingLevel } from "../models.ts";
 import { providerEventObserver, type ProviderEventObserver } from "../provider-events.ts";
 import type { PdfResult, PdfToolInput } from "../../core/contracts.ts";
@@ -379,6 +379,7 @@ function numOr(v: unknown, dflt: number): number {
 
 /** Cheap upfront readability probe — real parsing happens inside the tools. */
 async function probeReadable(pdfPath: string): Promise<string | null> {
+	if (await isProtectedPath(pdfPath)) return "access denied: protected secret file (API keys / credentials)";
 	try {
 		const fs = await import("node:fs/promises");
 		const stat = await fs.stat(pdfPath);

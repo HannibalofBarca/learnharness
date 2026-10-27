@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import { AUTH_FILE, ROOT } from "../../../config.ts";
 
 /**
  * Shared plumbing for the learner-filesystem tools (ls / find / grep) —
@@ -41,6 +42,65 @@ const EXCLUDED_DIR_NAMES = new Set(["node_modules", ".git", "Library", ".Trash"]
 export function resolveSourcePath(p?: string): string {
 	if (!p) return os.homedir();
 	return path.isAbsolute(p) ? p : path.join(os.homedir(), p);
+}
+
+/**
+ * THE SECRET-FILE GUARD (key hardening, 2026-10-27): the learner-file tools
+ * (read / ls / find / grep / the pdf reader) never open the app's own
+ * secrets — enforced here in code, not asked of the model in a prompt, so
+ * a prompt-injected agent still cannot reach them. Protected:
+ *   - the BYOK key store (AUTH_FILE, wherever LH_AUTH_FILE points it),
+ *   - its siblings in the key store's directory and the repo root: any
+ *     auth.json, its atomic-write temps, and the subscription login files
+ *     (`<provider>-credentials.json*`),
+ *   - any `.env` / `.env.*` file anywhere (dev secrets).
+ * Symlinks/junctions are resolved: a link to a secret is the secret.
+ */
+const CASE_INSENSITIVE_FS = process.platform === "win32" || process.platform === "darwin";
+
+function normalizePath(p: string): string {
+	const resolved = path.resolve(p);
+	return CASE_INSENSITIVE_FS ? resolved.toLowerCase() : resolved;
+}
+
+/** Could this basename be a secret at all? (A path-only symlink keeps the
+ *  basename, so walks — which never follow file symlinks — prefilter on it.) */
+function hasSecretName(p: string): boolean {
+	const name = path.basename(p).toLowerCase();
+	return (
+		name === ".env" ||
+		name.startsWith(".env.") ||
+		name === "auth.json" ||
+		name.startsWith(".auth.json.tmp") ||
+		name.includes("-credentials.json") ||
+		name === path.basename(AUTH_FILE).toLowerCase()
+	);
+}
+
+function isSecretPath(p: string): boolean {
+	if (normalizePath(p) === normalizePath(AUTH_FILE)) return true;
+	const name = path.basename(p).toLowerCase();
+	if (name === ".env" || name.startsWith(".env.")) return true;
+	const secretDirs = [path.dirname(AUTH_FILE), ROOT].map(normalizePath);
+	return secretDirs.includes(normalizePath(path.dirname(p))) && hasSecretName(p);
+}
+
+/** True when `p` (or what it links to) is a protected secret file. */
+export async function isProtectedPath(p: string): Promise<boolean> {
+	if (isSecretPath(p)) return true;
+	try {
+		const real = await fs.realpath(p);
+		return real !== path.resolve(p) && isSecretPath(real);
+	} catch {
+		return false; // missing path: nothing to protect; the caller's own error surfaces
+	}
+}
+
+/** Throws the model-visible refusal for a protected path. */
+export async function assertNotProtected(p: string): Promise<void> {
+	if (await isProtectedPath(p)) {
+		throw new Error(`Access denied: ${p} is a protected secret file (API keys / credentials).`);
+	}
 }
 
 /** pi's formatSize idiom (50KB prints as "50.0KB"). */
@@ -171,6 +231,7 @@ export async function walkFiles(
 				if (EXCLUDED_DIR_NAMES.has(entry.name)) continue;
 				if (await walkDir(full)) return true;
 			} else if (entry.isFile()) {
+				if (hasSecretName(full) && (await isProtectedPath(full))) continue; // secrets are invisible to walks
 				if (await visit(full)) return true;
 			}
 			// symlinks/other: not followed (pi's fd doesn't follow either)
