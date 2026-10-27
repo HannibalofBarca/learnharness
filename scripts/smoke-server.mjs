@@ -42,7 +42,7 @@ const RUNTIME = ELECTRON_MODE ? createRequire(import.meta.url)("electron") : pro
 const POLL_MS = 500;
 const BOOT_TIMEOUT_MS = 30_000;
 /** GET-only probes — the routes that exercised today's failure class. */
-const PROBES = ["/api/graph", "/api/models", "/api/settings"];
+const PROBES = ["/api/graph", "/api/settings", "/api/keys"];
 
 if (!fs.existsSync(SERVER)) {
 	console.error("[smoke-server] .next/standalone/server.js missing — run next build first.");
@@ -80,7 +80,6 @@ async function main() {
 	// HTTP boot alone never imports the dynamically loaded demo engine.
 	// Fail before packaging if its standalone dependency graph is incomplete.
 	verifyDemoRuntime(STANDALONE, RUNTIME);
-	// /api/models only reads catalogs; initialize the real lazy SDK offline too.
 	const port = await freePort();
 	const url = `http://127.0.0.1:${port}`;
 	const home = fs.mkdtempSync(path.join(os.tmpdir(), "lh-smoke-"));

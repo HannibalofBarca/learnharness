@@ -86,6 +86,9 @@ files:
   - node_modules/node-pty/package.json
   - node_modules/node-pty/lib/**/*
   - node_modules/node-pty/prebuilds/**/*
+# node-pty ships N-API prebuilds (ABI-stable across Electron versions); a
+# from-source rebuild would need a C++ toolchain for nothing.
+npmRebuild: false
 # Native binaries cannot load from inside the asar archive.
 asarUnpack:
   - node_modules/node-pty/prebuilds/**/*
