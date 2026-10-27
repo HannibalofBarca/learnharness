@@ -27,7 +27,6 @@ import {
 	type TeacherToolContext,
 } from "../src/agent/tools.ts";
 import { TOGGLEABLE_TOOLS } from "../src/core/pending.ts";
-import { jobStore } from "../src/store/jobs.ts";
 import { probeQuizInputSchema, quizInputObject, quizInputProblems } from "../src/core/question-core.ts";
 import { chatStore } from "../src/store/chats.ts";
 import { PATHS } from "../config.ts";
@@ -64,8 +63,8 @@ const validQuiz = {
 	nodeId: "arith",
 };
 
-import type { AgentTool } from "@earendil-works/pi-agent-core";
-import type { AgentToolResult } from "@earendil-works/pi-agent-core";
+import type { AgentTool } from "../src/core/agent-types.ts";
+import type { AgentToolResult } from "../src/core/agent-types.ts";
 
 /** The Wave A boundary predicate (2026-09-26): pi's loop structurally
  *  validates against the TypeBox parameters, then execute re-runs the
@@ -197,14 +196,10 @@ describe("the prober's quiz: no nodeId field at all", () => {
 		assert.equal("nodeId" in (Value.Clean(probeQuizInputSchema, smuggled) as object), false, "the dock parse strips it");
 	});
 
-	it("the prober's tool registry carries the nodeId-less quiz, probe_done, and the learner-filesystem set", () => {
+	it("the prober's tool registry carries the nodeId-less quiz, ask and probe_done (file reading and research are Claude Code's own)", () => {
 		const chatId = newChat("Prober: registry");
-		const tools = createProberTools({ chatId, chatStore, deliver: () => {}, jobStore, spawn: () => {} });
-		// Fix wave (2026-09-20): the owner ruling adds research + pdf dispatch
-		// to the probe phase's registry (demo/visual stay teach-only).
-		assert.deepEqual(Object.keys(tools).sort(), [
-			"ask_user_question", "find", "grep", "ls", "pdf", "probe", "probe_done", "read", "research",
-		]);
+		const tools = createProberTools({ chatId, chatStore, deliver: () => {} });
+		assert.deepEqual(Object.keys(tools).sort(), ["ask_user_question", "probe", "probe_done"]);
 		const probe = tools.probe as AgentTool<any>;
 		assert.equal(Value.Check(probe.parameters, { ...validQuiz, nodeId: "anything" }), true, "no session check to fail");
 	});
@@ -265,57 +260,32 @@ describe("tool toggles (core/pending.ts + factories)", () => {
 
 	it("createProberTools: absent record = full set; explicit false drops exactly that tool; probe_done survives everything", () => {
 		const chatId = newChat("Prober: toggles");
-		const ctx = { chatId, chatStore, deliver: () => {}, jobStore, spawn: () => {} };
-		assert.deepEqual(Object.keys(createProberTools(ctx)).sort(), [
-			"ask_user_question", "find", "grep", "ls", "pdf", "probe", "probe_done", "read", "research",
-		]);
+		const ctx = { chatId, chatStore, deliver: () => {} };
+		assert.deepEqual(Object.keys(createProberTools(ctx)).sort(), ["ask_user_question", "probe", "probe_done"]);
 
 		const noAsk = createProberTools(ctx, { ask_user_question: false });
-		assert.deepEqual(Object.keys(noAsk).sort(), ["find", "grep", "ls", "pdf", "probe", "probe_done", "read", "research"]);
+		assert.deepEqual(Object.keys(noAsk).sort(), ["probe", "probe_done"]);
 
 		// Quizzing is mechanics-managed now (owner 2026-09-27): quiz/explain
 		// NEVER pass through the generic filter — hand-written quiz:false is a
 		// no-op (the wedge danger stands: a quiz-less prober collapses its
 		// assessment flow). probe_done is never droppable — it ends the phase.
 		const noQuiz = createProberTools(ctx, { quiz: false });
-		assert.deepEqual(Object.keys(noQuiz).sort(), ["ask_user_question", "find", "grep", "ls", "pdf", "probe", "probe_done", "read", "research"]);
+		assert.deepEqual(Object.keys(noQuiz).sort(), ["ask_user_question", "probe", "probe_done"]);
 		// The mechanic switch (owner 2026-09-27): tools.explain === true arms
 		// free-recall — explain in, quiz out, exactly one quizzing tool.
 		const free = createProberTools(ctx, { explain: true });
-		assert.deepEqual(Object.keys(free).sort(), ["ask_user_question", "find", "grep", "ls", "pdf", "probe_done", "read", "recall", "research"]);
+		assert.deepEqual(Object.keys(free).sort(), ["ask_user_question", "probe_done", "recall"]);
 		assert.ok(createProberTools(ctx, { probe_done: false }).probe_done, "probe_done always-on");
 	});
 
-	it("createTeacherTools: {research: false} removes exactly research; unknown keys are no-ops", () => {
-		const chatId = newChat("Teacher: toggles");
-		const ctx: TeacherToolContext = {
-			chatId,
-			chatStore,
-			jobStore,
-			spawn: () => {},
-		};
+	it("createTeacherTools: quiz, ask and plan_init; the mechanic switch swaps quiz for explain", () => {
+		const chatId = newChat("Teacher: registry");
+		const ctx: TeacherToolContext = { chatId, chatStore };
 		const full = Object.keys(createTeacherTools(ctx)).sort();
-		assert.deepEqual(full, ["ask_user_question", "demo", "find", "grep", "ls", "pdf", "plan_init", "quiz", "read", "research", "visual"]);
-
-		const noResearch = Object.keys(createTeacherTools(ctx, { research: false })).sort();
-		assert.deepEqual(noResearch, ["ask_user_question", "demo", "find", "grep", "ls", "pdf", "plan_init", "quiz", "read", "visual"]);
-
-		// absent = enabled: an empty record and undefined behave identically
-		assert.deepEqual(
-			Object.keys(createTeacherTools(ctx, {})).sort(),
-			full,
-			"absent keys mean enabled — old records behave exactly as today",
-		);
-
-		// The mechanic switch (owner 2026-09-27): free-recall swaps the teach
-		// quiz for the teach explain — one quizzing tool, whichever is armed.
-		const freeFull = ["ask_user_question", "demo", "explain", "find", "grep", "ls", "pdf", "plan_init", "read", "research", "visual"];
-		assert.deepEqual(Object.keys(createTeacherTools(ctx, { explain: true })).sort(), freeFull);
-		assert.deepEqual(
-			Object.keys(createTeacherTools(ctx, { explain: true, research: false })).sort(),
-			freeFull.filter((t) => t !== "research"),
-			"mechanics and plain toggles compose",
-		);
+		assert.deepEqual(full, ["ask_user_question", "plan_init", "quiz"]);
+		assert.deepEqual(Object.keys(createTeacherTools(ctx, {})).sort(), full, "absent keys mean enabled");
+		assert.deepEqual(Object.keys(createTeacherTools(ctx, { explain: true })).sort(), ["ask_user_question", "explain", "plan_init"]);
 	});
 });
 

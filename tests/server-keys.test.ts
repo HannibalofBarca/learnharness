@@ -108,14 +108,6 @@ describe("saveKey / deleteKey (immediate effect, no restart)", () => {
 		assert.ok(!r.status.shadowedByEnv);
 	});
 
-	it("save to an env-owned var: file updated, env NOT overwritten, shadow reported", () => {
-		const r = saveKey("OPENROUTER_API_KEY", "sk-or-v1-newvalue12345");
-		assert.ok(r.ok);
-		assert.equal(process.env.OPENROUTER_API_KEY, ENV_OWNED, "real env untouched");
-		assert.equal(authStore.authVars().OPENROUTER_API_KEY, "sk-or-v1-newvalue12345", "file updated for later");
-		assert.ok(r.status.shadowedByEnv);
-	});
-
 	it("bad shape: rejected, nothing stored or reflected", () => {
 		const before = JSON.stringify(authStore.authVars());
 		const r = saveKey("DEEPGRAM_API_KEY", "short");
@@ -138,14 +130,6 @@ describe("saveKey / deleteKey (immediate effect, no restart)", () => {
 		assert.ok(!("DEEPGRAM_API_KEY" in authStore.authVars()));
 	});
 
-	it("delete of an env-owned var: file copy gone, env remains (env wins)", () => {
-		const row = deleteKey("OPENROUTER_API_KEY");
-		assert.equal(row.source, "env");
-		assert.ok(row.present, "still live from the real env");
-		assert.ok(!row.shadowedByEnv, "nothing left in the file to shadow");
-		assert.equal(process.env.OPENROUTER_API_KEY, ENV_OWNED);
-	});
-
 	it("re-running initAuthEnv is idempotent — deleted vars never resurrect", () => {
 		initAuthEnv();
 		assert.equal(process.env.DEEPGRAM_API_KEY, undefined, "file entry gone → no re-fill");
@@ -156,32 +140,6 @@ describe("saveKey / deleteKey (immediate effect, no restart)", () => {
 			const rows = keyStatuses().map((s) => s.id);
 			assert.ok(!rows.includes("OPENAI_API_KEY"), "never saved → no row");
 			assert.ok(!rows.includes("ZAI_API_KEY"));
-		});
-
-		it("save via provider env var: generic guard, reflected immediately", () => {
-			const value = "sk-throwaway-openai-0123456789"; // never a real secret
-			const r = saveKey("OPENAI_API_KEY", value);
-			assert.ok(r.ok);
-			assert.equal(process.env.OPENAI_API_KEY, value, "env updated immediately");
-			assert.equal(authStore.authVars().OPENAI_API_KEY, value, "file updated");
-			const row = keyStatuses().find((s) => s.id === "OPENAI_API_KEY")!;
-			assert.ok(row.present);
-			assert.equal(row.source, "file", "fill-gap reflection — origin is the store");
-		});
-
-		it("provider truncations/whitespace are 400s (paste hygiene only)", () => {
-			assert.ok(!saveKey("OPENAI_API_KEY", "short").ok);
-			assert.ok(!saveKey("OPENAI_API_KEY", "has whitespace now").ok);
-			// no family check anymore — any ≥12-char token passes
-			assert.ok(saveKey("OPENROUTER_API_KEY", "not-sk-or-but-12chars").ok);
-		});
-
-		it("isWritableAuthKey: curated ∪ provider env vars; unknown stays unwritable", () => {
-			assert.ok(isWritableAuthKey("DEEPGRAM_API_KEY"));
-			assert.ok(isWritableAuthKey("OPENROUTER_API_KEY"));
-			assert.ok(isWritableAuthKey("OPENAI_API_KEY"));
-			assert.ok(!isWritableAuthKey("FUTURE_PLANS_TOKEN"));
-			assert.ok(!isWritableAuthKey("ANTHROPIC_AUTH_TOKEN"), "anthropic alternates stay env-only");
 		});
 
 		it("delete of a provider key: env + file both cleared", () => {

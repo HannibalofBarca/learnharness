@@ -4,7 +4,6 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { describe, it } from "node:test";
 
-import type { AgentTool } from "@earendil-works/pi-agent-core";
 
 /**
  * Key hardening (2026-10-27): the learner-file tools never open the app's
@@ -45,58 +44,40 @@ fs.symlinkSync(KEYS, path.join(ROOT, "via-junction"), "junction");
 process.env.LH_AUTH_FILE = AUTH;
 
 // Dynamic imports: config.ts reads LH_AUTH_FILE at module load.
-const { readTool } = await import("../src/agent/tools/read.ts");
-const { lsTool } = await import("../src/agent/tools/ls.ts");
-const { findTool } = await import("../src/agent/tools/find.ts");
-const { grepTool } = await import("../src/agent/tools/grep.ts");
-const { isProtectedPath } = await import("../src/agent/tools/fs-shared.ts");
+const { isProtectedPath, walkFiles } = await import("../src/agent/tools/fs-shared.ts");
 const { localBrowserAuthorized } = await import("../src/server/desktop-access.ts");
 
-async function runText(tool: AgentTool<any>, params: unknown): Promise<string> {
-	const result = await tool.execute!("c", params);
-	const first = result.content[0];
-	assert.ok(first !== undefined && first.type === "text");
-	return (first as { type: "text"; text: string }).text;
+async function walked(root: string): Promise<string[]> {
+	const seen: string[] = [];
+	await walkFiles(root, (f) => {
+		seen.push(f);
+		return false;
+	});
+	return seen;
 }
 
-describe("secret-file guard (agent file tools)", () => {
-	it("read refuses the key store, login files and .env files", async () => {
+describe("secret-file guard (notes import + folder walks)", () => {
+	it("protects the key store, login files and .env files", async () => {
 		for (const p of [AUTH, path.join(KEYS, "chatgpt-credentials.json"), path.join(NOTES, ".env.local")]) {
-			await assert.rejects(async () => readTool.execute!("c", { path: p }), /Access denied/, p);
+			assert.equal(await isProtectedPath(p), true, p);
 		}
 	});
 
-	it("read refuses a secret reached through a symlink or junction", async (t) => {
-		await assert.rejects(async () => readTool.execute!("c", { path: path.join(ROOT, "via-junction", "my-keys.json") }), /Access denied/);
+	it("protects a secret reached through a symlink or junction", async (t) => {
+		assert.equal(await isProtectedPath(path.join(ROOT, "via-junction", "my-keys.json")), true);
 		if (!fileLink) return t.skip("file symlinks need privileges here");
-		await assert.rejects(async () => readTool.execute!("c", { path: path.join(NOTES, "innocent.txt") }), /Access denied/);
+		assert.equal(await isProtectedPath(path.join(NOTES, "innocent.txt")), true);
 	});
 
-	it("ordinary files stay readable, including an unrelated auth.json", async () => {
-		assert.match(await runText(readTool, { path: path.join(NOTES, "calc.md") }), /derivative/);
-		assert.match(await runText(readTool, { path: path.join(NOTES, "auth.json") }), /unrelated/);
-	});
-
-	it("ls hides secrets, keeps neighbours", async () => {
-		const out = await runText(lsTool, { path: KEYS });
-		assert.match(out, /readme\.txt/);
-		assert.doesNotMatch(out, /my-keys|credentials/);
-		assert.doesNotMatch(await runText(lsTool, { path: NOTES }), /\.env/);
-	});
-
-	it("find and grep never surface secrets, even via a junction", async () => {
-		const found = await runText(findTool, { path: ROOT, pattern: "*" });
-		assert.match(found, /calc\.md/);
-		assert.doesNotMatch(found, /my-keys|credentials|\.env/);
-		const grepped = await runText(grepTool, { path: ROOT, pattern: "sk-secret" });
-		assert.doesNotMatch(grepped, /sk-secret/);
-		await assert.rejects(async () => grepTool.execute!("c", { path: AUTH, pattern: "sk" }), /Access denied/);
-	});
-
-	it("isProtectedPath matches the configured store, not every auth.json", async () => {
-		assert.equal(await isProtectedPath(AUTH), true);
-		assert.equal(await isProtectedPath(path.join(NOTES, "auth.json")), false);
+	it("leaves ordinary files alone, including an unrelated auth.json", async () => {
 		assert.equal(await isProtectedPath(path.join(NOTES, "calc.md")), false);
+		assert.equal(await isProtectedPath(path.join(NOTES, "auth.json")), false);
+	});
+
+	it("folder walks never surface secrets, even via a junction", async () => {
+		const files = (await walked(ROOT)).map((f) => path.basename(f));
+		assert.ok(files.includes("calc.md"));
+		assert.ok(!files.some((f) => /my-keys|credentials|^\.env/.test(f)), files.join(", "));
 	});
 });
 

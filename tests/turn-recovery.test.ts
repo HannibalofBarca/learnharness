@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { Agent, AgentMessage } from "@earendil-works/pi-agent-core";
+import type { AgentMessage } from "../src/core/agent-types.ts";
+import type { TurnAgent as Agent } from "../src/server/pi/ui-stream.ts";
 import type { ChatStore } from "../src/core/ports.ts";
 import { runPiTurn } from "../src/server/pi/ui-stream.ts";
 import { persistTurn } from "../src/server/turn-service.ts";

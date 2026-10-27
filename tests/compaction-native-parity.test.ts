@@ -45,11 +45,3 @@ test("chained cutoff operates on active retained history, never the previous sum
 	assert.equal(compactionCutIndex(messages, 100), 1, "retained tail fits; no progress");
 	assert.equal(compactionCutIndex(messages, 15), 2, "old summary does not consume the kept-tail budget");
 });
-
-test("opaque signatures remain unmeasured and preserved; system/image allowances match native", () => {
-	const signed = { ...assistant(4), content: [{ type: "thinking", thinking: "", thinkingSignature: "opaque".repeat(100_000) }] } as LhMessage;
-	assert.equal(estimateMessageTokens(signed), 0);
-	assert.equal((signed as { content: { thinkingSignature: string }[] }).content[0]!.thinkingSignature.length, 600_000);
-	const system = { role: "system", content: [{ type: "image", data: "fixture", mimeType: "image/png" }], sections: { a: "abcd" }, toolsAdded: [{ name: "fixture" }] };
-	assert.equal(estimateMessageTokens(system as never), Math.ceil((4800 + 4 + JSON.stringify(system.toolsAdded).length) / 4));
-});

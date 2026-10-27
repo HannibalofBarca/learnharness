@@ -18,7 +18,7 @@ import {
 	type LhMessage,
 	type LhMarkerMessage,
 } from "../src/core/index.ts";
-import type { AssistantMessage, ToolResultMessage } from "@earendil-works/pi-ai";
+import type { AssistantMessage, ToolResultMessage } from "../src/core/agent-types.ts";
 import { projectView } from "../src/core/view.ts";
 
 /**
@@ -414,8 +414,8 @@ describe("toLlmMessages carries the leading system message (request chrome)", ()
 			{ id: "u1", role: "user", content: "hello", timestamp: 1 },
 		] as unknown as LhMessage[];
 		const out = toLlmMessages([chrome, ...plain] as never);
-		assert.equal(out.filter((m) => m.role === "system").length, 1);
-		assert.equal(out[0]!.role, "system");
+		assert.equal(out.filter((m) => (m as { role: string }).role === "system").length, 1);
+		assert.equal((out[0] as { role: string }).role, "system");
 	});
 
 	it("record-path callers (no chrome in the record) are unchanged: head first", () => {

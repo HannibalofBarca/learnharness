@@ -9,9 +9,6 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { Terminal } from "@xterm/xterm";
-import { FitAddon } from "@xterm/addon-fit";
-import "@xterm/xterm/css/xterm.css";
 
 interface TerminalBridge {
 	open: (chatId: string, cols: number, rows: number) => Promise<string>;
@@ -63,43 +60,52 @@ export function ClaudeTerminal({ chatId }: { chatId: string }) {
 		if (!term || !host || !open) return;
 		setExited(null);
 		setError(null);
-		const xterm = new Terminal({
-			fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-			fontSize: 12,
-			cursorBlink: true,
-			convertEol: false,
-			theme: { background: "#0b0b0c", foreground: "#e6e6e6" },
-		});
-		const fit = new FitAddon();
-		xterm.loadAddon(fit);
-		xterm.open(host);
-		fit.fit();
 		let disposed = false;
-		const offData = term.onData((id, data) => {
-			if (id === chatId) xterm.write(data);
-		});
-		const offExit = term.onExit((id, code) => {
-			if (id === chatId) setExited(code);
-		});
-		const typing = xterm.onData((data) => term.input(chatId, data));
-		void term
-			.open(chatId, xterm.cols, xterm.rows)
-			.then((scrollback) => {
-				if (!disposed && scrollback) xterm.write(scrollback);
-			})
-			.catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
-		const observer = new ResizeObserver(() => {
+		let cleanup: (() => void) | undefined;
+		// xterm is browser-only: loaded here, in the window, never at module
+		// load (the chat view also renders in tests and on the server).
+		void Promise.all([import("@xterm/xterm"), import("@xterm/addon-fit")]).then(([{ Terminal }, { FitAddon }]) => {
+			if (disposed) return;
+			const xterm = new Terminal({
+				fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+				fontSize: 12,
+				cursorBlink: true,
+				convertEol: false,
+				theme: { background: "#0b0b0c", foreground: "#e6e6e6" },
+			});
+			const fit = new FitAddon();
+			xterm.loadAddon(fit);
+			xterm.open(host);
 			fit.fit();
-			term.resize(chatId, xterm.cols, xterm.rows);
+			const offData = term.onData((id, data) => {
+				if (id === chatId) xterm.write(data);
+			});
+			const offExit = term.onExit((id, code) => {
+				if (id === chatId) setExited(code);
+			});
+			const typing = xterm.onData((data) => term.input(chatId, data));
+			void term
+				.open(chatId, xterm.cols, xterm.rows)
+				.then((scrollback) => {
+					if (!disposed && scrollback) xterm.write(scrollback);
+				})
+				.catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
+			const observer = new ResizeObserver(() => {
+				fit.fit();
+				term.resize(chatId, xterm.cols, xterm.rows);
+			});
+			observer.observe(host);
+			cleanup = () => {
+				observer.disconnect();
+				typing.dispose();
+				offData();
+				offExit();
+				xterm.dispose();
+			};
 		});
-		observer.observe(host);
 		return () => {
 			disposed = true;
-			observer.disconnect();
-			typing.dispose();
-			offData();
-			offExit();
-			xterm.dispose();
+			cleanup?.();
 		};
 	}, [chatId, open, generation]);
 

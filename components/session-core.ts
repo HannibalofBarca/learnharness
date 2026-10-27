@@ -13,8 +13,8 @@
  * ready | submitted | streaming | error.
  */
 
-import type { AgentEvent } from "@/src/core/agent-types";
-import type { ToolResultMessage } from "@/src/core/agent-types";
+import type { AgentEvent } from "@/src/core";
+import type { ToolResultMessage } from "@/src/core";
 import {
 	needsContinuation,
 	danglingQuestionOf,

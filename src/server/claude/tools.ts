@@ -15,8 +15,6 @@
 
 import { randomUUID } from "node:crypto";
 import { Type, type TSchema } from "typebox";
-import { Compile } from "typebox/compile";
-import { Value } from "typebox/value";
 import type { AgentTool, AgentToolResult } from "../../core/agent-types.ts";
 import { createProberTools, createTeacherTools } from "../../agent/tools.ts";
 import { practiceTools } from "../../agent/tools/practice.ts";
@@ -120,26 +118,8 @@ export function listTools(chatId: string): ListedTool[] {
 	return [...byName.values()];
 }
 
-// ─── validation (the engine loop's job, now ours) ───────────────────────────
-
-const validators = new WeakMap<object, ReturnType<typeof Compile>>();
-
-export function validateArguments(tool: AgentTool<any>, raw: unknown): { ok: true; args: unknown } | { ok: false; error: string } {
-	const prepared = tool.prepareArguments ? tool.prepareArguments(raw as never) : raw;
-	const args = structuredClone(prepared ?? {});
-	Value.Convert(tool.parameters, args);
-	let validator = validators.get(tool.parameters);
-	if (!validator) {
-		validator = Compile(tool.parameters);
-		validators.set(tool.parameters, validator);
-	}
-	if (validator.Check(args)) return { ok: true, args };
-	const problems = validator
-		.Errors(args)
-		.map((e) => `  - ${e.instancePath.replace(/^\//, "").replace(/\//g, ".") || "root"}: ${e.message}`)
-		.join("\n");
-	return { ok: false, error: `Validation failed for tool "${tool.name}":\n${problems || "  - unknown error"}` };
-}
+export { validateArguments } from "../../agent/validate.ts";
+import { validateArguments } from "../../agent/validate.ts";
 
 // ─── native message shapes ─────────────────────────────────────────────────
 

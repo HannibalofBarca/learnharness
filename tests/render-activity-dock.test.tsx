@@ -3,7 +3,6 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { ActivitySection, formatElapsed, toBlobs, type ActivityFeed, type FeedExtraction } from "../components/activity-dock.tsx";
 import { formatTokens, formatUsd } from "../components/usage-format.ts";
-import { jobCost } from "../src/server/pricing.ts";
 
 // The section's pure layer: folds, formatting, and blob order — then the SSR
 // render (blobs, "—" doctrine, the abort affordance, the always-present
@@ -28,7 +27,7 @@ function job(over: Partial<ActivityFeed["jobs"][number]> = {}): ActivityFeed["jo
 		updatedAt: new Date(NOW - 1000).toISOString(),
 		title: "Limits lesson",
 		contextLimit: null,
-		costUsd: jobCost({ usage: over.usage }),
+		costUsd: null,
 		...over,
 	};
 }
@@ -57,27 +56,6 @@ describe("activity dock pure layer", () => {
 		assert.equal(blobs.length, 2, "one blob per chunk job");
 		assert.deepEqual(blobs.map((b) => b.id), ["src_a#1", "src_a#2"], "unique row ids — no duplicate React keys");
 		assert.ok(blobs.every((b) => b.chatId === "src_a"), "abort/link identity stays source-scoped");
-	});
-
-	it("uses the server's Pi price projection; absent pricing is null, never zero", () => {
-		const priced = job({
-			usage: {
-				model: "openrouter:z-ai/glm-5.3-flash",
-				inputTokens: 10_000,
-				outputTokens: 1000,
-				cacheReadTokens: 5000,
-				cacheWriteTokens: 0,
-				reasoningTokens: 0,
-				steps: 2,
-			},
-		});
-		const blob = toBlobs({ jobs: [priced], extractions: [] })[0]!;
-		// Pi-normalized fresh input is priced directly, never reduced by reads.
-		assert.equal(blob.cost, 0.00215);
-		const missingProjection = toBlobs({ jobs: [{ ...priced, costUsd: undefined }], extractions: [] })[0]!;
-		assert.equal(missingProjection.cost, null, "the browser must not invent a fallback price");
-		const absent = toBlobs({ jobs: [job()], extractions: [] })[0]!;
-		assert.equal(absent.cost, null);
 	});
 
 	it("a key-refused job reads as info — 'needs a provider key' (zero-keys wave, 66dbea9)", () => {
@@ -225,29 +203,4 @@ describe("activity section render", () => {
 	});
 
 
-	it("shows total running cost when jobs are priced", () => {
-		const usage = {
-			model: "openrouter:z-ai/glm-5.3-flash",
-			inputTokens: 10_000,
-			outputTokens: 1000,
-			cacheReadTokens: 0,
-			cacheWriteTokens: 0,
-			reasoningTokens: 0,
-			steps: 1,
-		};
-		const html = renderToStaticMarkup(
-			<ActivitySection
-				feed={{
-					jobs: [
-						job({ id: "a", usage }),
-						job({ id: "b", usage, createdAt: new Date(NOW - 20_000).toISOString() }),
-					],
-					extractions: [],
-				}}
-			/>,
-		);
-		// two identical priced jobs → 2 × $0.002 = $0.0040 total (pi prices,
-		// glm-5.3-flash drifted in pi-ai 0.87.1)
-		assert.match(html, /activity-total-cost[^>]*>\$0\.0040</);
-	});
 });

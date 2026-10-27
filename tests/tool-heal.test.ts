@@ -22,7 +22,7 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { validateToolArguments } from "@earendil-works/pi-ai";
+import { validateToolArguments } from "../src/agent/validate.ts";
 import { healEncodedArguments } from "../src/core/argument-heal.ts";
 import { stripModelValueDebris } from "../src/core/value-debris.ts";
 import {
@@ -33,8 +33,11 @@ import {
 } from "../src/core/question-core.ts";
 import { parseQuizInput } from "../src/core/tool-parts.ts";
 import { resolveTargetId } from "../src/core/chains.ts";
-import { bareQuestionTools } from "../src/agent/teacher-agent.ts";
-import { probeQuizTool } from "../src/agent/tools.ts";
+import { createTeacherTools, probeQuizTool } from "../src/agent/tools.ts";
+
+/** The teach registry's question tools (heals run in prepareArguments —
+ *  no record is read until execute). */
+const bareQuestionTools = () => createTeacherTools({ chatId: "heal-test", chatStore: {} as never });
 
 /** The incident's exact encoding: the value wrapped in literal quotes. */
 function QUOTED(value: string): string {

@@ -200,5 +200,29 @@ describe("claude bridge", () => {
 		assert.equal(jobs.length, 1);
 		assert.equal(jobs[0]!.status, "done");
 	});
+	it("the launch: both phases in one method prompt, restricted flags, deny rules, token-carrying MCP config", async () => {
+		const { bridgePrompt, claudeLaunch } = await import("../src/server/claude/launch.ts");
+		const teach = bridgePrompt("teach");
+		assert.match(teach, /You are the LearnHarness tutor/);
+		assert.ok(teach.indexOf("Phase 1 — PROBING") < teach.indexOf("Phase 2 — TEACHING"));
+		assert.doesNotMatch(bridgePrompt("practice"), /Phase 1 — PROBING/);
+		const id = newChat();
+		const launch = claudeLaunch(id, "http://127.0.0.1:4321")!;
+		assert.equal(launch.resumeArgs, undefined, "nothing to resume before the Stop hook records a conversation");
+		for (const flag of ["--restricted", "--strict-mcp-config", "--append-system-prompt-file", "--session-id"]) assert.ok(launch.freshArgs.includes(flag), flag);
+		assert.ok(!launch.freshArgs.includes("--bare"), "--bare would refuse the subscription login");
+		const tools = launch.freshArgs[launch.freshArgs.indexOf("--tools") + 1]!;
+		assert.ok(tools.includes("mcp__learnharness__wait_for_learner"));
+		assert.ok(!/Bash|Edit|Write/.test(tools), tools);
+		const settings = JSON.parse(fs.readFileSync(launch.freshArgs[launch.freshArgs.indexOf("--settings") + 1]!, "utf-8"));
+		assert.equal(settings.autoMemoryEnabled, false);
+		assert.equal(settings.disableClaudeAiConnectors, true);
+		assert.ok(settings.permissions.deny.some((r: string) => r.startsWith("Read(//") && r.endsWith("/**)")), "the data dir is denied");
+		const mcp = JSON.parse(fs.readFileSync(launch.freshArgs[launch.freshArgs.indexOf("--mcp-config") + 1]!, "utf-8"));
+		assert.equal(mcp.mcpServers.learnharness.url, `http://127.0.0.1:4321/api/mcp?chat=${id}`);
+		assert.equal(mcp.mcpServers.learnharness.headers.Authorization, `Bearer ${bridgeToken()}`);
+		await handleClaudeHook(new Request(`http://127.0.0.1/api/claude/hook?chat=${id}`, { method: "POST", headers: { authorization: `Bearer ${bridgeToken()}` }, body: JSON.stringify({ session_id: "conv-1", stop_hook_active: true }) }));
+		assert.ok(claudeLaunch(id, "http://127.0.0.1:4321")!.resumeArgs?.includes("conv-1"), "the hook-recorded conversation resumes");
+	});
 });
 

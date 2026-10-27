@@ -11,17 +11,11 @@ import { appearanceVars, derivedPalette, resolveAppearance, staleVarNames } from
 import {
 	PROMPT_IN_USE_HINT,
 	composePromptSwitch,
-	composeSearchEngine,
-	composeSlotModel,
-	composeTool,
 	composeQuizMechanics,
 	sectionedSegments,
 } from "../components/settings/agent-section.tsx";
 import { nextOverrides } from "../components/settings/keyboard-section.tsx";
-import { classifyKeys, keyStatusLine, type ProviderKeyInfo } from "../components/settings/keys-section.tsx";
 import type { AgentSettings, AuthKeyStatus, ModelsSettings } from "../src/core";
-import { slotsConfigured } from "../src/core";
-import { setupStage } from "../components/setup-dialog.tsx";
 
 describe("resolveAppearance — delta over factory", () => {
 	it("absent everything = the factory view", () => {
@@ -144,57 +138,6 @@ describe("staleVarNames — the removal half of application (owner repro: resets
 });
 
 describe("agent section compose helpers — the replace-whole PUT body", () => {
-	it("composeTool carries the rest of the section verbatim", () => {
-		const before = { tools: { demo: false }, prompts: { "system-prompt.md": true } };
-		const after = composeTool(before, "visual", false);
-		assert.deepEqual(after.tools, { demo: false, visual: false });
-		assert.deepEqual(after.prompts, { "system-prompt.md": true }, "prompts untouched");
-	});
-
-	it("composeSlotModel: empty+empty REMOVES the slot (absent = factory pin)", () => {
-		const after = composeSlotModel(
-			{ strong: { model: { provider: "openrouter", id: "x" } }, cheap: {} },
-			"strong",
-			"",
-			"",
-			"",
-		);
-		assert.equal(after.strong, undefined, "slot dropped");
-		assert.deepEqual(after.cheap, {}, "sibling untouched");
-	});
-
-	it("composeSlotModel: model alone, thinking alone, and both — provider rides the swap (federation)", () => {
-		assert.deepEqual(composeSlotModel(undefined, "strong", "zai", "glm-4.7-flash", "").strong, {
-			model: { provider: "zai", id: "glm-4.7-flash" },
-		});
-		assert.deepEqual(composeSlotModel(undefined, "cheap", "", "", "low").cheap, { thinkingLevel: "low" });
-		assert.deepEqual(composeSlotModel(undefined, "vision", "openai", "gpt-5.2", "high").vision, {
-			model: { provider: "openai", id: "gpt-5.2" },
-			thinkingLevel: "high",
-		});
-	});
-
-	it("composeSlotModel: per-field independence — clearing the model keeps the thinking pin", () => {
-		const prev: ModelsSettings = { strong: { model: { provider: "zai", id: "glm-4.7-flash" }, thinkingLevel: "high" } };
-		const after = composeSlotModel(prev, "strong", "", "", "high");
-		assert.deepEqual(after.strong, { model: { provider: "zai", id: "glm-4.7-flash" }, thinkingLevel: "high" }, "model carried, thinking kept");
-		// clearing thinking keeps the model
-		const after2 = composeSlotModel(prev, "strong", "zai", "glm-4.7-flash", "");
-		assert.deepEqual(after2.strong, { model: { provider: "zai", id: "glm-4.7-flash" } }, "thinking dropped, model kept");
-	});
-
-	it("composeSearchEngine: null REMOVES the pin (auto-activation's resting state)", () => {
-		const withPin: AgentSettings = { search: { engine: "tavily" } };
-		const cleared = composeSearchEngine(withPin, null);
-		assert.equal(cleared.search, undefined);
-		// no pin to begin with → carried verbatim
-		assert.deepEqual(composeSearchEngine({ tools: { demo: true } }, null).tools, { demo: true });
-	});
-
-	it("composeSearchEngine: the explicit preference writes agent.search.engine", () => {
-		assert.deepEqual(composeSearchEngine(undefined, "brave").search, { engine: "brave" });
-	});
-
 	it("composePromptSwitch: on = explicit true, off = key REMOVED (absent = off)", () => {
 		assert.deepEqual(composePromptSwitch({ prompts: { a: true } }, "b", true).prompts, { a: true, b: true });
 		assert.deepEqual(composePromptSwitch({ prompts: { a: true, b: true } }, "b", false).prompts, { a: true });
@@ -210,120 +153,6 @@ describe("nextOverrides — the rebind persistence map", () => {
 	it("null = reset that action to its default (key removed)", () => {
 		const next = nextOverrides({ "toggle-sidebar": "mod+b", find: "mod+f" }, "toggle-sidebar", null);
 		assert.deepEqual(next, { find: "mod+f" });
-	});
-});
-
-describe("classifyKeys — the Keys section's two-group projection", () => {
-	const synth = (id: string, present = false): AuthKeyStatus => ({
-		id,
-		info: null,
-		present,
-		masked: present ? `…${id.slice(-4)} (32 chars)` : null,
-		source: present ? "file" : "none",
-		shadowedByEnv: false,
-	});
-	const providers: ProviderKeyInfo[] = [
-		{ id: "groq", envVar: "GROQ_API_KEY", label: "Groq" },
-		{ id: "deepseek", envVar: "DEEPSEEK_API_KEY", label: "DeepSeek" },
-		{ id: "openrouter", envVar: "OPENROUTER_API_KEY", label: "OpenRouter" },
-	];
-
-	it("OpenRouter is UN-pinned (wave-5 owner ruling): no row when absent, a row when stored", () => {
-		const none = classifyKeys([], providers);
-		assert.equal(none.providerRows.length, 0); // nothing synthesized
-		assert.ok(none.addable.some((p) => p.id === "openrouter")); // it's just an Add option
-		const stored = classifyKeys([synth("OPENROUTER_API_KEY", true)], providers);
-		assert.equal(stored.providerRows.length, 1);
-		assert.equal(stored.providerRows[0]!.id, "OPENROUTER_API_KEY");
-		assert.ok(!stored.addable.some((p) => p.id === "openrouter"));
-	});
-
-	it("stored provider keys land in providerRows; the Add dropdown drops them", () => {
-		const out = classifyKeys([synth("GROQ_API_KEY", true)], providers);
-		assert.equal(out.providerRows.length, 1);
-		assert.equal(out.providerRows[0]!.id, "GROQ_API_KEY");
-		// the Add dropdown no longer offers groq
-		assert.ok(!out.addable.some((p) => p.id === "groq"));
-		assert.ok(out.addable.some((p) => p.id === "deepseek"));
-	});
-
-	it("curated tool ids always render (synthesized when absent)", () => {
-		const out = classifyKeys([synth("DEEPGRAM_API_KEY", true)], undefined);
-		assert.deepEqual(out.toolRows.map((r) => r.id), [
-			"DEEPGRAM_API_KEY",
-			"TAVILY_API_KEY",
-			"BRAVE_API_KEY",
-		]);
-		assert.ok(out.toolRows[0]!.present);
-		assert.ok(!out.toolRows[1]!.present);
-	});
-
-	it("unknown file vars surface read-only, out of the provider rows", () => {
-		const out = classifyKeys([synth("PLANS_LOGIN_TOKEN", true)], providers);
-		assert.equal(out.unknownRows.length, 1);
-		assert.equal(out.providerRows.length, 0);
-	});
-
-	it("providers seam absent = addable empty, nothing crashes", () => {
-		const out = classifyKeys([], undefined);
-		assert.deepEqual(out.addable, []);
-	});
-});
-
-describe("keyStatusLine — the minimal at-a-glance state", () => {
-	it("present file key: tail + chars, no source suffix", () => {
-		assert.equal(
-			keyStatusLine({ id: "X", info: null, present: true, masked: "…ab12 (64 chars)", source: "file", shadowedByEnv: false }),
-			"…ab12 · 64",
-		);
-	});
-
-	it("env-owned key carries the 'env' marker (the row renders read-only)", () => {
-		assert.equal(
-			keyStatusLine({ id: "X", info: null, present: true, masked: "…ca10 (73 chars)", source: "env", shadowedByEnv: false }),
-			"…ca10 · 73 · env",
-		);
-	});
-
-	it("absent key reads 'not set'", () => {
-		assert.equal(keyStatusLine({ id: "X", info: null, present: false, masked: null, source: "none", shadowedByEnv: false }), "not set");
-	});
-});
-
-describe("first-run gate — slotsConfigured + setupStage (model-slots wave)", () => {
-	it("slotsConfigured: all three slot models required — thinking levels are optional", () => {
-		assert.equal(slotsConfigured(undefined), false, "no record = unconfigured");
-		assert.equal(slotsConfigured({}), false, "empty models section");
-		assert.equal(
-			slotsConfigured({
-				strong: { model: { provider: "zai", id: "glm-5.3-flash" } },
-				cheap: { model: { provider: "zai", id: "glm-4.7-flash" } },
-			}),
-			false,
-			"vision missing",
-		);
-		assert.equal(
-			slotsConfigured({
-				strong: { model: { provider: "zai", id: "glm-5.3-flash" } },
-				cheap: { model: { provider: "zai", id: "glm-4.7-flash" } },
-				vision: { model: { provider: "openai", id: "gpt-5.2" } },
-			}),
-			true,
-			"all three picked",
-		);
-		// a thinking-only pin does NOT configure the slot
-		assert.equal(
-			slotsConfigured({ strong: { thinkingLevel: "low" }, cheap: { thinkingLevel: "low" }, vision: { thinkingLevel: "low" } }),
-			false,
-			"thinking pins are not models",
-		);
-	});
-
-	it("setupStage: keys before models (owner's dependency ordering)", () => {
-		assert.equal(setupStage(null), "keys", "fetch failed → the honest fallback");
-		assert.equal(setupStage([]), "keys", "no providers = keys");
-		assert.equal(setupStage([{ id: "zai", keyPresent: false }]), "keys", "provider present but keyless");
-		assert.equal(setupStage([{ id: "zai", keyPresent: false }, { id: "openai", keyPresent: true }]), "pickers", "one keyed provider widens the pickers");
 	});
 });
 

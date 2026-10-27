@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { AssistantMessage } from "@earendil-works/pi-ai";
+import type { AssistantMessage } from "../src/core/agent-types.ts";
 import { measuredContextTokens, newCompactionMarker, type LhMessage } from "../src/core/index.ts";
 import { SessionModel } from "../components/session-core.ts";
 

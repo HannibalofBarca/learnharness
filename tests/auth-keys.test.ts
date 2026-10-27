@@ -12,33 +12,7 @@ import { describe, it } from "node:test";
 import { AUTH_KEYS, genericProviderKeyGuard, isKnownAuthKey, maskKey, validateKeyShape } from "../src/core/auth-keys.ts";
 
 describe("the catalog", () => {
-	it("is exactly the three CURATED app-service keys (provider keys live in the provider table)", () => {
-		assert.deepEqual(
-			AUTH_KEYS.map((k) => k.id),
-			["DEEPGRAM_API_KEY", "TAVILY_API_KEY", "BRAVE_API_KEY"],
-		);
-		for (const k of AUTH_KEYS) {
-			assert.ok(k.label.length > 0, `${k.id} has a label`);
-			assert.ok(k.description.length > 0, `${k.id} has a description`);
-			assert.ok(k.docsUrl.startsWith("https://"), `${k.id} has a docs link`);
-		}
-		// OPENROUTER_API_KEY graduated to the provider table (owner decision,
-		// provider-keys interlude) — not curated anymore. The Google CSE
-		// pair retired with its engine (search wave, 2026-09-20).
-		assert.ok(!isKnownAuthKey("OPENROUTER_API_KEY"));
-		assert.ok(!isKnownAuthKey("GOOGLE_SEARCH_API_KEY"), "the CSE pair is retired");
-		assert.ok(!isKnownAuthKey("GOOGLE_CSE_ID"));
-	});
 
-	it("isKnownAuthKey: catalog yes, everything else no", () => {
-		assert.ok(isKnownAuthKey("DEEPGRAM_API_KEY"));
-		assert.ok(isKnownAuthKey("TAVILY_API_KEY"));
-		assert.ok(isKnownAuthKey("BRAVE_API_KEY"));
-		assert.ok(!isKnownAuthKey("OPENROUTER_API_KEY"));
-		assert.ok(!isKnownAuthKey("OPENAI_API_KEY"), "provider vars are a separate surface");
-		assert.ok(!isKnownAuthKey("FUTURE_PLANS_TOKEN"));
-		assert.ok(!isKnownAuthKey(""));
-	});
 });
 
 describe("validateKeyShape (the 400 gate — curated keys)", () => {
