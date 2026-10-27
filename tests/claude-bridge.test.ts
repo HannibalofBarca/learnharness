@@ -187,5 +187,18 @@ describe("claude bridge", () => {
 		const { stores } = await import("../src/server/stores.ts");
 		assert.ok(stores.graphStore.readNodes().length >= 2);
 	});
+	it("deliver_research writes a finished research job into the lesson", async () => {
+		const id = newChat();
+		const out = await callTool(id, "deliver_research", { question: "Who first wrote d/dx?", brief: "Leibniz, 1675 [1].", sources: [{ title: "History", url: "https://example.org" }] }, never);
+		assert.ok(!out.isError, out.text);
+		runningTurn(id)?.abort();
+		await settle();
+		const messages = chatStore.getChat(id)!.messages as unknown as { role: string; customType?: string; content: unknown }[];
+		assert.deepEqual(messages.map((m) => m.customType ?? m.role), ["assistant", "toolResult", "subagent-steer"]);
+		const { stores } = await import("../src/server/stores.ts");
+		const jobs = stores.jobStore.listJobs(id);
+		assert.equal(jobs.length, 1);
+		assert.equal(jobs[0]!.status, "done");
+	});
 });
 

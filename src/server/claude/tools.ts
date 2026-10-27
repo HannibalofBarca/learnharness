@@ -31,6 +31,7 @@ import { effectiveSettings, stores } from "../stores.ts";
 import { startBridgeTurn } from "../chat-handler.ts";
 import { block, claudeSession, serialized, type ClaudeSession } from "./session.ts";
 import { callGraphTool, GRAPH_TOOLS } from "./graph-tools.ts";
+import { callDeliverTool, DELIVER_TOOLS } from "./deliver-tools.ts";
 
 export type Phase = "prober" | "teacher" | "practice";
 
@@ -119,6 +120,7 @@ export function listTools(chatId: string): ListedTool[] {
 	}
 	for (const tool of BRIDGE_TOOLS) byName.set(tool.name, tool);
 	if (record?.kind !== "practice") for (const tool of GRAPH_TOOLS) byName.set(tool.name, tool);
+	for (const tool of DELIVER_TOOLS) byName.set(tool.name, tool);
 	return [...byName.values()];
 }
 
@@ -241,6 +243,9 @@ async function runCall(session: ClaudeSession, chatId: string, name: string, raw
 		session.stopRequested = false;
 		return { text: STOPPED, isError: true };
 	}
+
+	const delivered = await callDeliverTool(chatId, name, rawArgs);
+	if (delivered) return delivered;
 
 	const phase = phaseOf(record);
 	const tool = phaseTools(chatId, phase)[name];
