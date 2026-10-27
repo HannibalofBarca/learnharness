@@ -1,11 +1,16 @@
-> **Fork note — LearnHarness × Claude Code.** This fork of [amosblomqvist/learnharness](https://github.com/amosblomqvist/learnharness) has **no model engine of its own**. The tutor is your own [Claude Code](https://claude.com/claude-code), running in a terminal embedded in each session, using LearnHarness's method, GUI and tools over MCP. Design: [`docs/claude-code-bridge.md`](docs/claude-code-bridge.md).
->
-> - **No API keys or provider logins.** Model slots, the model picker, provider keys, ChatGPT/Copilot/Grok sign-in and cost tracking are removed. Only dictation's Deepgram key remains.
-> - **You drive Claude Code.** Each session opens `claude` pre-wired: only the LearnHarness tool server, no connectors or auto-memory, no command/edit tools, reads of LearnHarness's data folder and key files denied. Lessons, questions, plans and answers flow through the app's window.
-> - **Background work is Claude's.** Knowledge-graph extraction, notes import (queued from the import dialog), research, PDF briefs, demos and figures are done by the tutor Claude through LearnHarness tools — ask for them in the session's terminal.
-> - **Key hardening** (earlier fork work): `npm run dev` / `npm start` bind to `127.0.0.1`; without the desktop secret, `/api/*` needs a loopback `Host` and same-origin `Origin`/`Sec-Fetch-Site`; the bridge routes need a per-install token.
->
-> Requires Claude Code installed and signed in. Tests: `tests/claude-bridge.test.ts`, `tests/secret-guard.test.ts`.
+# ClaudeHarness
+
+A fork of [LearnHarness](https://github.com/amosblomqvist/learnharness) where your own **Claude Code** is the tutor. No API keys, no app-side AI: LearnHarness keeps its method, GUI and tools; Claude does the thinking.
+
+| Change | What |
+|---|---|
+| Claude Code tutor | Embedded terminal per session runs `claude`, driving lessons through LearnHarness tools (MCP) |
+| Engine removed | No model providers, API keys, logins, model picker or cost tracking |
+| Locked-down tutor | Restricted tools, no connectors, data folder and secrets unreadable |
+| Graph & extras | Graph extraction, notes import, research, PDFs, demos, figures done by Claude |
+| Hardening | Local-only dev server, same-origin API gate, token-protected bridge |
+
+Requires Claude Code installed and signed in. Details: [`docs/claude-code-bridge.md`](docs/claude-code-bridge.md).
 
 ---
 
