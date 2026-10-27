@@ -73,13 +73,26 @@ phase and a compact recent history — this session only.
 
 | Old agent | Now |
 |---|---|
-| extractor + auditor | `extraction_batch` → `submit_extraction` → `submit_links`; the deterministic merger writes the ledgers |
-| notes import | same tools over a notes source, launched from the import dialog |
+| extractor + auditor | `graph_extract_next` → `graph_submit_findings` → graph readers → `graph_submit_links`; the deterministic merger writes the ledgers. Run by Claude at session end or on request — never automatically, the app cannot start Claude |
+| notes import | the import dialog QUEUES uploads (`data/claude/notes-queue/`); `graph_import_notes` (no path = next queued file, or a path) runs the same flow |
 | researcher / pdf reader | Claude's own WebSearch/WebFetch/Read, then `deliver_research` / `deliver_pdf_brief` |
-| demo builder / visual maker | `submit_demo` / `submit_visual`; headless render verification (no model) returns errors or the rendered image |
+| demo builder / visual maker | `test_demo` → `deliver_demo` (re-tested, refused if failing); `preview_visual` (returns the rendered PNG) → `deliver_visual` |
 | practice agent | the practice prompts + `problem` / `conclude` over the same bridge |
 | compaction summarizer | Claude Code's own compaction + `resume_session` |
 
 Removed with the engine: pi-ai / pi-agent-core runtime, model slots and
 picker, provider keys and subscription logins, cost accounting, the wake
 pipeline. Kept: the Deepgram key (dictation) in `auth.json`.
+
+## Running it
+
+- Desktop (development): `npm run desktop:dev` — Next on 127.0.0.1:3000 plus the Electron shell; open a session and the terminal pane starts Claude Code.
+- Browser-only `npm run dev` has no embedded terminal; `/api/claude/launch?chat=<id>` returns the argv to run yourself.
+- Claude Code must be installed (`claude` on PATH) and signed in. `--bare` is never used: it refuses subscription login.
+- Conversations resume with `--resume` while Claude Code still keeps the transcript (its own cleanup applies); afterwards a fresh conversation starts and `resume_session` rebuilds this session's context only.
+
+## Known limits
+
+- The app cannot start or prompt Claude by itself: the manual "extract" button and notes import tell the learner what to ask in the terminal.
+- Per-turn token cost and context meters are gone (Claude Code shows its own usage).
+- Engine-era features with no Claude Code equivalent were removed: model slots and per-session models, compaction settings, the background job wake pipeline.

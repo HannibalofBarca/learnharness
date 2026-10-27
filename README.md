@@ -1,10 +1,11 @@
-> **Fork note — key hardening.** This fork of [amosblomqvist/learnharness](https://github.com/amosblomqvist/learnharness) adds:
+> **Fork note — LearnHarness × Claude Code.** This fork of [amosblomqvist/learnharness](https://github.com/amosblomqvist/learnharness) has **no model engine of its own**. The tutor is your own [Claude Code](https://claude.com/claude-code), running in a terminal embedded in each session, using LearnHarness's method, GUI and tools over MCP. Design: [`docs/claude-code-bridge.md`](docs/claude-code-bridge.md).
 >
-> - **Agent can't read secrets.** `read` / `ls` / `find` / `grep` / the PDF reader refuse the key store (`auth.json` / `LH_AUTH_FILE`), subscription login files (`*-credentials.json`) and any `.env*` file — enforced in code, symlinks resolved.
-> - **Dev server is local-only.** `npm run dev` / `npm start` / `desktop:dev` bind to `127.0.0.1`.
-> - **Browser-mode API gate.** Without the desktop secret, `/api/*` requires a loopback `Host` and same-origin `Origin` / `Sec-Fetch-Site` — blocks other websites and DNS rebinding.
+> - **No API keys or provider logins.** Model slots, the model picker, provider keys, ChatGPT/Copilot/Grok sign-in and cost tracking are removed. Only dictation's Deepgram key remains.
+> - **You drive Claude Code.** Each session opens `claude` pre-wired: only the LearnHarness tool server, no connectors or auto-memory, no command/edit tools, reads of LearnHarness's data folder and key files denied. Lessons, questions, plans and answers flow through the app's window.
+> - **Background work is Claude's.** Knowledge-graph extraction, notes import (queued from the import dialog), research, PDF briefs, demos and figures are done by the tutor Claude through LearnHarness tools — ask for them in the session's terminal.
+> - **Key hardening** (earlier fork work): `npm run dev` / `npm start` bind to `127.0.0.1`; without the desktop secret, `/api/*` needs a loopback `Host` and same-origin `Origin`/`Sec-Fetch-Site`; the bridge routes need a per-install token.
 >
-> Tests: `tests/secret-guard.test.ts`.
+> Requires Claude Code installed and signed in. Tests: `tests/claude-bridge.test.ts`, `tests/secret-guard.test.ts`.
 
 ---
 

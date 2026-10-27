@@ -81,8 +81,14 @@ files:
   - node_modules/universalify/**/*
   - node_modules/ms/**/*
   - node_modules/argparse/**/*
-  # Main-process ID-token signature verification (no bundled OAuth implementation).
-  - node_modules/jose/**/*
+  # The embedded tutor terminal (docs/claude-code-bridge.md): node-pty's JS
+  # and its prebuilt N-API binaries (one set per platform; no rebuild).
+  - node_modules/node-pty/package.json
+  - node_modules/node-pty/lib/**/*
+  - node_modules/node-pty/prebuilds/**/*
+# Native binaries cannot load from inside the asar archive.
+asarUnpack:
+  - node_modules/node-pty/prebuilds/**/*
 extraResources:
   # Attribution/license for the bounded local Pi cutoff-selector port.
   - from: docs/compaction-accounting.md
