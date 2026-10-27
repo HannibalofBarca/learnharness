@@ -164,3 +164,24 @@ export function startBridgeTurn(chatId: string): BridgeAgent | undefined {
 	emit("record-changed", { chatId });
 	return agent;
 }
+
+/** Mid-reply composer input (POST /api/chats/[id]/steer): the message joins
+ *  the live turn (streams + persists with it) and reaches Claude with its
+ *  next tool result. False when no turn is running (the client sends it as
+ *  a normal message instead). */
+export function steerClaude(chatId: string, message: LhMessage): boolean {
+	const session = claudeSession(chatId);
+	const agent = session.agent;
+	if (!agent || agent.settled) return false;
+	agent.push(message as never);
+	session.inbox.push(learnerText([message]));
+	return true;
+}
+
+/** A dismissed question releases Claude's parked call (no turn opens: the
+ *  learner skipped it; Claude decides what comes next). */
+export function deliverDismissal(chatId: string, appends: readonly LhMessage[]): void {
+	const session = claudeSession(chatId);
+	if (session.blocked?.kind !== "question") return;
+	deliver(session, `${learnerText(appends)}\n\nThe learner dismissed this question without answering. Do not re-ask it; continue (usually: wait_for_learner).`);
+}

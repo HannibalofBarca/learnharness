@@ -7,7 +7,7 @@ export interface NotesImportResult {
 	requestIndex: number;
 	filePath: string;
 	ok: boolean;
-	outcome: "completed" | "failed" | "partial" | "aborted" | "busy";
+	outcome: "completed" | "failed" | "partial" | "aborted" | "busy" | "queued";
 	stats?: { nodes: number; chains?: number; droppedChains?: number };
 	error?: string;
 	code?: string;
@@ -27,7 +27,7 @@ export function parseNotesImportResults(body: unknown, files: readonly File[]): 
 		const r = raw as NotesImportResult;
 		if (!Number.isInteger(r.requestIndex) || r.requestIndex < 0 || r.requestIndex >= files.length || seen.has(r.requestIndex) || r.filePath !== files[r.requestIndex]!.name) throw invalid();
 		seen.add(r.requestIndex);
-		if (!["completed", "failed", "partial", "aborted", "busy"].includes(r.outcome) || typeof r.ok !== "boolean" || r.ok !== (r.outcome === "completed")) throw invalid();
+		if (!["completed", "failed", "partial", "aborted", "busy", "queued"].includes(r.outcome) || typeof r.ok !== "boolean" || r.ok !== (r.outcome === "completed")) throw invalid();
 		if (r.stats !== undefined && (!r.stats || typeof r.stats !== "object" || !Number.isFinite(r.stats.nodes) || r.stats.nodes < 0 || (r.stats.chains !== undefined && (!Number.isFinite(r.stats.chains) || r.stats.chains < 0)))) throw invalid();
 		if (r.ok && !r.stats) throw invalid();
 		if (!r.ok && typeof r.error !== "string") throw invalid();

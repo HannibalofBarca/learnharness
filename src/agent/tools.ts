@@ -13,20 +13,12 @@ import {
 	quizInputProblems,
 } from "../core/question-core.ts";
 import { filterEnabledTools, type EnabledTools } from "../core/pending.ts";
-import type { JobRecord } from "../core/contracts.ts";
-import type { JobStore } from "../core/ports.ts";
-import { jobTools, type DemoInput, type PdfInput, type ResearchInput, type VisualInput } from "./tools/jobs.ts";
 import { planTools, type PlanToolContext } from "./tools/plan.ts";
 import { probeDoneTool, type ProbeDoneContext } from "./tools/probe.ts";
 import { proberGraphTools } from "./tools/graph.ts";
-import { readTool } from "./tools/read.ts";
-import { lsTool } from "./tools/ls.ts";
-import { findTool } from "./tools/find.ts";
-import { grepTool } from "./tools/grep.ts";
 import { healToolRecord } from "./tools/heal.ts";
 import type { GraphStore } from "../core/ports.ts";
 
-export { jobTools };
 export type { ProbeDoneContext } from "./tools/probe.ts";
 
 /**
@@ -52,8 +44,8 @@ export type { ProbeDoneContext } from "./tools/probe.ts";
  * - probe_done (src/agent/tools/probe.ts): SERVER-SIDE seam tool.
  * - planTools (src/agent/tools/plan.ts): SERVER-SIDE — author-once
  *   plan_init. Teacher only.
- * - jobTools (src/agent/tools/jobs.ts): SERVER-EXECUTED dispatch. Teacher
- *   only.
+ * - File reading and the background jobs are the tutor Claude's own
+ *   (docs/claude-code-bridge.md).
  */
 
 /** GLM wobble guard (owner-approved, 2026-09-26): models sometimes emit
@@ -261,15 +253,8 @@ export const probeExplainTool: AgentTool<typeof explainInputBase> = {
 };
 
 /** The prober's registry context: the probe's own needs (probe_done —
- *  ProbeDoneContext) PLUS the job-dispatch wiring, since the owner ruling
- *  (2026-09-20) puts research + pdf in the probe phase's registry too. */
+ *  ProbeDoneContext) plus the gated graph-map reader. */
 export interface ProberToolContext extends ProbeDoneContext {
-	/** Creates the job record (deduped by toolCallId). */
-	jobStore: JobStore;
-	/** Fire the background runner for a freshly created job. */
-	spawn: (job: JobRecord, input: ResearchInput | DemoInput | VisualInput | PdfInput) => void;
-	/** Retained search-status seam; research dispatch is available keylessly. */
-	searchAvailable?: () => boolean;
 	/** The prober's graph-map reader (wave 7): present = the two map tools
 	 *  (list_sessions / list_propositions) are registered. The composition
 	 *  root passes it only when graphToolsEnabled(effective) — the graph
@@ -291,14 +276,6 @@ export function createProberTools(
 	// probe_done is re-added AFTER the filter, always-on by construction — it
 	// is how the phase ENDS; a prober that can never conclude is a lockout.
 	const done = probeDoneTool(ctx);
-	// The job tools build over the SAME context/gates as the teacher's
-	// (one builder, one gating semantic); the prober carries a SUBSET:
-	const jobs = jobTools({
-		chatId: ctx.chatId,
-		jobStore: ctx.jobStore,
-		spawn: ctx.spawn,
-		searchAvailable: ctx.searchAvailable,
-	});
 	// Quizzing mechanics (owner 2026-09-27): free-recall swaps the probe
 	// quiz for the probe explain — one quizzing tool at a time, whichever
 	// the settings arm. ask stays always-on. The registry keys are the
@@ -319,21 +296,6 @@ export function createProberTools(
 			{
 				...quizzing,
 				ask_user_question: askUserQuestionTool,
-				// The learner-filesystem set is always-on (user-decided 2026-09,
-				// sources v1): the prober inspects and LOCATES learner-referenced
-				// files while assessing the edge. Read-only by construction.
-				read: readTool,
-				ls: lsTool,
-				find: findTool,
-				grep: grepTool,
-				// Job dispatch in the probe phase (owner ruling, 2026-09-20):
-				// research + pdf are ALWAYS available in every phase — the
-				// prober can verify facts or read learner PDFs while assessing.
-				// demo/visual stay teach-phase-only (they need the lesson's plan
-				// context). Same user-toggle filtering as the teacher; research
-				// remains available without a search-provider key.
-				...(jobs.research ? { research: jobs.research } : {}),
-				pdf: jobs.pdf!,
 				// The map reader (wave 7): present only when the settings gate
 				// opened.
 				...(ctx.graphStore
@@ -390,17 +352,9 @@ export function teachQuizToolFor(ctx: Pick<PlanToolContext, "chatId" | "chatStor
 	};
 }
 
-export interface TeacherToolContext extends PlanToolContext {
-	/** Job-tool wiring (sub-agent dispatch): the job store + the runner's
-	 *  spawn seam. The composition root injects both. */
-	jobStore: JobStore;
-	/** Fire the background runner for a freshly created job. The tool input
-	 *  rides along — the spawn fires mid-stream, before the tool part is
-	 *  persisted to the transcript (a transcript scan would race it). */
-	spawn: (job: JobRecord, input: ResearchInput | DemoInput | VisualInput | PdfInput) => void;
-	/** Retained search-status seam; research dispatch is available keylessly. */
-	searchAvailable?: () => boolean;
-}
+/** The teacher's registry context: the plan tools' needs. File reading and
+ *  the background jobs are the tutor Claude's own (docs/claude-code-bridge.md). */
+export type TeacherToolContext = PlanToolContext;
 
 /**
  * Per-request teacher tool registry: teach questions (validated nodeId) +
@@ -449,16 +403,7 @@ export function createTeacherTools(
 			{
 			...quizzing,
 			ask_user_question: askUserQuestionTool,
-			// The learner-filesystem set is always-on (user-decided 2026-09,
-			// sources v1): the teacher locates and reads learner-referenced
-			// files on its own terms — nothing auto-injects. Read-only by
-			// construction (fs-shared.ts).
-			read: readTool,
-			ls: lsTool,
-			find: findTool,
-			grep: grepTool,
 			...planTools(ctx),
-			...jobTools({ chatId: ctx.chatId, jobStore: ctx.jobStore, spawn: ctx.spawn, searchAvailable: ctx.searchAvailable }),
 		},
 		withoutMechanics(enabled),
 		),

@@ -20,7 +20,7 @@
  * fires both).
  */
 import { ChatInputError, dismissAppends, emit, parseDismissInput } from "@/src/core";
-import { getChat, isTurnRunning, parkDismissal, stores } from "@/src/server";
+import { deliverDismissal, getChat, isTurnRunning, parkDismissal, stores } from "@/src/server";
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<Response> {
 	const { id } = await ctx.params;
@@ -61,5 +61,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 	const merged = [...chat.messages, ...appends];
 	stores.chatStore.saveMessages(id, merged);
 	emit("record-changed", { chatId: id });
+	deliverDismissal(id, appends);
 	return Response.json({ ok: true });
 }

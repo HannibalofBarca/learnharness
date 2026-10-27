@@ -33,19 +33,15 @@ export { effectivePromptSegments, allSegmentPaths, readPromptOverride } from "..
 // Importing this module runs the idempotent boot fill-gap — every consumer
 // keeps its plain process.env reads (that seam is the point).
 export * from "./keys.ts";
-export * from "./search.ts";
 export { authStore } from "../store/auth.ts";
 export * from "./settings-body.ts";
 export * from "./turn-liveness.ts";
 export * from "./turn-runs.ts";
 export * from "./dismissal-park.ts";
-export * from "./compaction.ts";
 export { runPiTurn, piTurnResponse, type PiTurnHandle, type PiTurnSpec } from "./pi/ui-stream.ts";
 export * from "./observability.ts";
-export * from "./model-catalog.ts";
-export { subscriptionControlsResponse, subscriptionBrowserResponse } from "./web-subscription-http.ts";
-export { sessionCost } from "./pricing.ts";
 // The Claude Code bridge (docs/claude-code-bridge.md).
 export { handleMcpRequest } from "./claude/mcp.ts";
 export { handleClaudeHook } from "./claude/hook.ts";
 export { claudeLaunch } from "./claude/launch.ts";
+export { queueNotes } from "./claude/graph-tools.ts";

@@ -21,10 +21,7 @@ import type { LhMessage } from "../core/native-messages.ts";
 import { newMessageId } from "../core/native-messages.ts";
 import { QUESTION_TOOLS } from "../core/pending.ts";
 import { planBlocksFor } from "../core/plan-blocks.ts";
-import { coverageOf } from "../core/coverage.ts";
-import type { ChatStore, GraphStore } from "../core/ports.ts";
-import type { ExtractionPipeline } from "../agent/subagents/extraction.ts";
-import { ModelsNotConfiguredError, ProviderKeyMissingError } from "../core/settings.ts";
+import type { ChatStore } from "../core/ports.ts";
 
 /** Distinguish a failed canonical save from later bookkeeping failures. */
 export class TurnPersistenceError extends Error {
@@ -89,51 +86,5 @@ export function persistTurn(
 	} catch (err) {
 		console.error(`[chat ${chatId}] persist failed:`, err, { isAborted });
 		throw new TurnPersistenceError(err);
-	}
-}
-
-/**
- * The graph write channel (vision §1 construction): the extraction pipeline
- * (extractor → auditor → merger — the sole graph writer) runs ASYNC once a
- * chat's UNCOVERED transcript tokens reach the chunk budget
- * (vision-extraction-coverage.md, 2026-09-15). Coverage reads through the
- * projection (the record is native history; the extraction view stays
- * client-shaped until Wave D). Fire-and-forget — never blocks the turn;
- * failures are logged by the pipeline and leave coverage untouched, so the
- * next trigger (or the manual extract button) re-runs what's left.
- *
- * Deliberately isolated in this one seam — the pipeline is
- * trigger-agnostic. Skipped under tests: scripted chats are fixtures, not
- * knowledge (the pipeline itself is tested directly with mock models).
- */
-export function triggerExtraction(
-	deps: { chatStore: ChatStore; graphStore: GraphStore },
-	extraction: ExtractionPipeline,
-	chatId: string,
-	chunkTokens: number,
-): void {
-	if (process.env.NODE_ENV === "test") return;
-	try {
-		const record = deps.chatStore.getChat(chatId);
-		if (!record) return;
-		const covered = coverageOf(record.messages, deps.graphStore.readCoverage(), chatId);
-		if (covered.uncoveredTokens < chunkTokens) return;
-		void extraction.runExtraction(chatId).catch((err) => {
-			// BYOK (owner, 2026-09-22) + key presence (provider-key interlude,
-			// 2026-09-25): an unconfigured OR keyless write channel SKIPS (the
-			// coverage ledger keeps the messages uncovered — the next trigger
-			// retries once slots/keys are set); only real failures log.
-			if (err instanceof ModelsNotConfiguredError) {
-				console.info(`[chat ${chatId}] extraction skipped — ${err.envelope.error} (missing: ${err.envelope.missing.join(", ")})`);
-				return;
-			}
-			if (err instanceof ProviderKeyMissingError) {
-				console.info(`[chat ${chatId}] extraction skipped — ${err.envelope.error} (provider: ${err.envelope.provider})`);
-				return;
-			}
-			console.error(`[chat ${chatId}] extraction pipeline failed:`, err);
-		});
-	} catch (err) {
-		console.error(`[chat ${chatId}] extraction trigger failed:`, err);
 	}
 }

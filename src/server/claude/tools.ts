@@ -35,8 +35,8 @@ import { callDeliverTool, DELIVER_TOOLS } from "./deliver-tools.ts";
 
 export type Phase = "prober" | "teacher" | "practice";
 
-/** Old-engine tools Claude Code replaces with its own (file reading, web)
- *  or with the bridge's deliver tools (the background jobs). */
+/** Names Claude Code covers itself or the deliver tools replace — never
+ *  listed even if a registry still carried them. */
 const REPLACED = new Set(["read", "ls", "find", "grep", "research", "demo", "visual", "pdf"]);
 
 /** The wire result an MCP call returns. */
@@ -51,10 +51,6 @@ export interface ListedTool {
 	name: string;
 	description: string;
 	inputSchema: TSchema;
-}
-
-function noJobs() {
-	return { jobStore: stores.jobStore, spawn: () => undefined, searchAvailable: () => false };
 }
 
 function strip(tools: Record<string, AgentTool<any>>): Record<string, AgentTool<any>> {
@@ -72,7 +68,7 @@ export function phaseTools(chatId: string, phase: Phase): Record<string, AgentTo
 			...strip(practiceTools({ chatId, chatStore: stores.chatStore, graphNodes: () => stores.graphStore.readNodes(), ...(graph ? { graph } : {}) })),
 		};
 	}
-	const base = { chatId, chatStore: stores.chatStore, ...noJobs() };
+	const base = { chatId, chatStore: stores.chatStore };
 	if (phase === "prober") {
 		return { ...sendToUser, ...strip(createProberTools({ ...base, deliver: () => undefined, ...(graph ? { graphStore: stores.graphStore } : {}) }, effective.agent.tools)) };
 	}
@@ -288,6 +284,8 @@ async function runCall(session: ClaudeSession, chatId: string, name: string, raw
 	}
 	agent.push(toolResultMessage(toolCallId, name, result, isError) as never);
 	const wire = resultToWire(result, isError);
+	// Mid-reply composer input reaches Claude with its next result.
+	if (session.inbox.length > 0) wire.text += `\n\n[While you were working, the learner wrote:]\n${session.inbox.splice(0).join("\n\n")}`;
 	if (name === PRACTICE_PROBLEM_TOOL && !isError) {
 		const work = await block(session, "problem", signal, toolCallId);
 		return { ...wire, text: `${wire.text}\n\nThe learner responded:\n\n${work}` };

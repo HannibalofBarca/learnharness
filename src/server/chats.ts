@@ -1,5 +1,5 @@
 import { abortExtraction, extractionStatuses } from "../agent/subagents/extraction.ts";
-import { isJobLive } from "../agent/subagents/aborts.ts";
+import { dropClaudeSession } from "./claude/session.ts";
 import { coverageOf } from "../core/coverage.ts";
 import { deleteChatTraces, type ChatDeleteMode, type ChatDeletionStats } from "../core/graph-deletion.ts";
 import { titleFromPrompt } from "../core/contracts.ts";
@@ -7,7 +7,6 @@ import { graphRevision } from "./graph.ts";
 import { stores } from "./stores.ts";
 import { isTurnRunning } from "./turn-liveness.ts";
 import { clearTurnFailure } from "./turn-runs.ts";
-import { discardChatDeliveries } from "./jobs.ts";
 
 /**
  * Server-side chat entries for the transport layer (app/api/chats*,
@@ -82,7 +81,7 @@ function runningWorkBlocker(chatId: string): Extract<ChatDeleteOutcome, { status
 	// result without a live loop is pending session data, not computing work;
 	// deletion must not depend on a prior recovery poll to recognize it.
 	const runningJobs = stores.jobStore.listJobs(chatId).filter((job) =>
-		job.status === "running" && (!job.result || isJobLive(job.id)));
+		job.status === "running" && !job.result);
 	if (runningJobs.length > 0) {
 		return {
 			ok: false,
@@ -127,8 +126,8 @@ export async function deleteChatSession(chatId: string, mode: ChatDeleteMode): P
 	const stats = deleteChatTraces(stores.graphStore, chatId, mode);
 	const jobsRemoved = stores.jobStore.deleteJobsForChat(chatId);
 	if (stores.chatStore.deleteChat(chatId)) {
-		discardChatDeliveries(chatId);
 		clearTurnFailure(chatId);
+		dropClaudeSession(chatId);
 	}
 	return { ok: true, mode, stats, jobsRemoved, graphRevision: graphRevision() };
 }

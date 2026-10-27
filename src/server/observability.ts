@@ -22,9 +22,7 @@
 import { extractionStatuses, type ExtractionPhase } from "../agent/subagents/extraction.ts";
 import { chatStore } from "../store/chats.ts";
 import { graphRevision } from "./graph.ts";
-import { catalogContextLimits } from "./model-catalog.ts";
 import { listJobs } from "./jobs.ts";
-import { jobCost } from "./pricing.ts";
 import type { JobRecord } from "../core/contracts.ts";
 
 export { abortExtraction, extractionStatuses, type ExtractionPhase, type RunningExtraction } from "../agent/subagents/extraction.ts";
@@ -72,16 +70,15 @@ export function activityFeed(): {
 	graphRevision: number;
 } {
 	const chats = chatStore.listChats();
-	const limits = catalogContextLimits();
 	const jobs: ActivityJob[] = [];
 	for (const chat of chats) {
 		for (const job of listJobs(chat.id)) {
 			if (job.status === "running") {
 				jobs.push({
 					...job,
-					costUsd: jobCost(job),
+					costUsd: null,
 					title: chat.title ?? chat.id,
-					contextLimit: job.usage ? (limits.get(job.usage.model) ?? null) : null,
+					contextLimit: null,
 				});
 			}
 		}

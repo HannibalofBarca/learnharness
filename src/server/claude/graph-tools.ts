@@ -17,6 +17,8 @@
 
 import * as crypto from "node:crypto";
 import fs from "node:fs";
+import path from "node:path";
+import { PATHS } from "../../../config.ts";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type, type TSchema } from "typebox";
 import {
@@ -73,6 +75,31 @@ function pendingMap(): Map<string, Pending> {
 
 const notesFindingsSchema = findingsSchema;
 
+/** Notes uploaded through the import dialog wait here for the tutor
+ *  (POST /api/graph/import; graph_import_notes with no path takes the oldest). */
+const NOTES_QUEUE = path.join(PATHS.data, "claude", "notes-queue");
+
+export function queueNotes(fileName: string, text: string): void {
+	fs.mkdirSync(NOTES_QUEUE, { recursive: true });
+	const safe = path.basename(fileName).replace(/[^A-Za-z0-9._ -]/g, "_") || "notes.txt";
+	fs.writeFileSync(path.join(NOTES_QUEUE, `${Date.now()}-${safe}`), JSON.stringify({ fileName, text }), "utf-8");
+}
+
+function takeQueuedNotes(): { fileName: string; text: string } | null {
+	let entries: string[];
+	try {
+		entries = fs.readdirSync(NOTES_QUEUE).sort();
+	} catch {
+		return null;
+	}
+	const first = entries[0];
+	if (!first) return null;
+	const file = path.join(NOTES_QUEUE, first);
+	const queued = JSON.parse(fs.readFileSync(file, "utf-8")) as { fileName: string; text: string };
+	fs.rmSync(file, { force: true });
+	return queued;
+}
+
 const READERS = () => auditorGraphTools({ chatStore: stores.chatStore, graphStore: stores.graphStore });
 const READER_NAMES: Record<string, string> = { graph_find: "find", graph_list_sessions: "list_sessions", graph_list_propositions: "list_propositions" };
 
@@ -86,8 +113,9 @@ export const GRAPH_TOOLS: ListedTool[] = [
 	},
 	{
 		name: "graph_import_notes",
-		description: "Knowledge graph: start importing a notes file (absolute path, or relative to the learner's home). Returns the first chunk with the extractor instructions.",
-		inputSchema: Type.Object({ path: Type.String({ minLength: 1 }) }),
+		description:
+			"Knowledge graph: start importing a notes file — `path` (absolute, or relative to the learner's home), or no path for the next file the learner queued in the import dialog. Returns the first chunk with the extractor instructions.",
+		inputSchema: Type.Object({ path: Type.Optional(Type.String({ minLength: 1 })) }),
 	},
 	{
 		name: "graph_submit_findings",
@@ -163,14 +191,22 @@ function notesChunkText(p: PendingNotes): string {
 	return `${NOTES_EXTRACTOR_INSTRUCTIONS}\n\n---\n\n${withDigest(p.sourceId, view)}\n\n---\n\nSubmit with graph_submit_notes_findings.`;
 }
 
-async function importNotes(chatId: string, rawPath: string): Promise<BridgeResult> {
-	const filePath = resolveSourcePath(rawPath);
-	if (await isProtectedPath(filePath)) return { text: `Access denied: ${filePath} is a protected secret file.`, isError: true };
+async function importNotes(chatId: string, rawPath: string | undefined): Promise<BridgeResult> {
+	let filePath: string;
 	let text: string;
-	try {
-		text = fs.readFileSync(filePath, "utf-8");
-	} catch (err) {
-		return { text: `Cannot read ${filePath}: ${err instanceof Error ? err.message : String(err)}`, isError: true };
+	if (!rawPath) {
+		const queued = takeQueuedNotes();
+		if (!queued) return { text: "No queued notes — pass a path, or ask the learner to upload files in the import dialog.", isError: true };
+		filePath = queued.fileName;
+		text = queued.text;
+	} else {
+		filePath = resolveSourcePath(rawPath);
+		if (await isProtectedPath(filePath)) return { text: `Access denied: ${filePath} is a protected secret file.`, isError: true };
+		try {
+			text = fs.readFileSync(filePath, "utf-8");
+		} catch (err) {
+			return { text: `Cannot read ${filePath}: ${err instanceof Error ? err.message : String(err)}`, isError: true };
+		}
 	}
 	const chunks = chunkNotes(text, chunkTokens());
 	if (chunks.length === 0) return { text: `${filePath} is empty.`, isError: true };
@@ -235,7 +271,10 @@ function submitLinks(chatId: string, raw: unknown): BridgeResult {
 /** Handle a graph tool call, or undefined when `name` is not one. */
 export async function callGraphTool(chatId: string, name: string, args: unknown, signal: AbortSignal): Promise<BridgeResult | undefined> {
 	if (name === "graph_extract_next") return nextChatStretch(chatId);
-	if (name === "graph_import_notes") return importNotes(chatId, String((args as { path?: unknown })?.path ?? ""));
+	if (name === "graph_import_notes") {
+		const raw = (args as { path?: unknown } | undefined)?.path;
+		return importNotes(chatId, typeof raw === "string" && raw.trim() ? raw : undefined);
+	}
 	if (name === "graph_submit_findings") return submitFindings(chatId, args, false);
 	if (name === "graph_submit_notes_findings") return submitFindings(chatId, args, true);
 	if (name === "graph_submit_links") return submitLinks(chatId, args);

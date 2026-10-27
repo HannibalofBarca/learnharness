@@ -17,11 +17,6 @@
 import { Type, type Static } from "typebox";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { resolveTargetId } from "../../core/chains.ts";
-import { readTool } from "./read.ts";
-import { lsTool } from "./ls.ts";
-import { findTool } from "./find.ts";
-import { grepTool } from "./grep.ts";
-import { jobTools, type JobToolContext } from "./jobs.ts";
 import { proberGraphTools, type GraphToolContext } from "./graph.ts";
 import { activeProblemOf } from "../../core/native-messages.ts";
 import type { LhMessage } from "../../core/native-messages.ts";
@@ -40,10 +35,10 @@ export interface PracticeToolContext {
 	graphNodes?: () => ReadonlyArray<Pick<import("../../core/contracts/graph.ts").GraphNode, "id" | "name">>;
 	/** THE RARELY-NEEDED SET (owner round 10, 2026-10-05): the map readers
 	 *  behind the SAME settings gate as the prober's (graphToolsEnabled at
-	 *  the composition root); the research + pdf jobs (both keyless).
-	 *  Each absent context (tests) = absent from the registry. */
+	 *  the composition root). Absent context (tests) = absent from the
+	 *  registry. File reading and research are the tutor Claude's own
+	 *  (docs/claude-code-bridge.md). */
 	graph?: GraphToolContext;
-	jobs?: JobToolContext;
 }
 
 /** TURN-SCOPED GATE STATE (the BKT incident, 2026-10-05): the gates used
@@ -223,14 +218,8 @@ export function concludeTool(gate: PracticeGate): AgentTool<typeof concludeInput
 export function practiceTools(ctx: PracticeToolContext): Record<string, AgentTool<any>> {
 	// ONE gate per turn, shared by both tools — the intra-turn truth.
 	const gate = createPracticeGate(ctx);
-	// THE RARELY-NEEDED SET (owner round 10): read/ls/find/grep over the
-	// learner's files (always — the same read-only set the teacher and
-	// prober carry), the research + pdf jobs (available without search
-	// keys; demo/visual stay teach-only), and
-	// the prober's map readers when the settings gate opened. None are
-	// toggle-filtered: problem/conclude are the session; these are
-	// exceptions the doctrine says to reach for rarely.
-	const jobs = ctx.jobs ? jobTools(ctx.jobs) : null;
+	// The map readers when the settings gate opened (file reading and
+	// research are the tutor Claude's own — docs/claude-code-bridge.md).
 	// healToolRecord (owner, 2026-10-09 — the whitehead generalization):
 	// the standard argument heal over the WHOLE registry. problem/conclude
 	// keep their own (target-normalizing) prepareArguments as the composed
@@ -238,12 +227,6 @@ export function practiceTools(ctx: PracticeToolContext): Record<string, AgentToo
 	return healToolRecord({
 		problem: problemTool(gate, ctx.graphNodes),
 		conclude: concludeTool(gate),
-		read: readTool,
-		ls: lsTool,
-		find: findTool,
-		grep: grepTool,
-		...(jobs?.research ? { research: jobs.research } : {}),
-		...(jobs ? { pdf: jobs.pdf! } : {}),
 		...(ctx.graph ? proberGraphTools(ctx.graph) : {}),
 	});
 }
