@@ -224,5 +224,24 @@ describe("claude bridge", () => {
 		await handleClaudeHook(new Request(`http://127.0.0.1/api/claude/hook?chat=${id}`, { method: "POST", headers: { authorization: `Bearer ${bridgeToken()}` }, body: JSON.stringify({ session_id: "conv-1", stop_hook_active: true }) }));
 		assert.ok(claudeLaunch(id, "http://127.0.0.1:4321")!.resumeArgs?.includes("conv-1"), "the hook-recorded conversation resumes");
 	});
+	it("the planner: saves plans, opens topic sessions with the plan context, launches unrestricted", async () => {
+		const { callPlannerTool, plannerLaunch, listPlans } = await import("../src/server/claude/planner.ts");
+		const saved = await callPlannerTool("plan_save", { title: "Calculus", markdown: "# Goals\nUnderstand derivatives.", topics: [{ title: "Limits", goal: "Know what a limit is" }, { title: "Derivatives", goal: "Derive x^2" }] }, never);
+		assert.ok(!saved.isError, saved.text);
+		const plan = listPlans().find((p) => p.title === "Calculus")!;
+		assert.equal(plan.topics.length, 2);
+		const opened = await callPlannerTool("session_open", { planId: plan.id, topicIndex: 1 }, never);
+		assert.ok(!opened.isError, opened.text);
+		const reread = listPlans().find((p) => p.id === plan.id)!;
+		const chat = chatStore.getChat(reread.topics[1]!.sessionId!)!;
+		assert.equal(chat.title, "Derivatives");
+		assert.match(String((chat.messages[0] as { content: unknown }).content), /Goal: Derive x\^2[\s\S]*Understand derivatives/);
+		const resaved = await callPlannerTool("plan_save", { id: plan.id, title: "Calculus", markdown: "v2", topics: [{ title: "Derivatives", goal: "Derive x^2" }] }, never);
+		assert.ok(!resaved.isError);
+		assert.equal(listPlans().find((p) => p.id === plan.id)!.topics[0]!.sessionId, chat.id, "a topic keeps its session across re-saves");
+		const launch = plannerLaunch("http://127.0.0.1:4321");
+		assert.ok(!launch.freshArgs.includes("--restricted") && !launch.freshArgs.includes("--strict-mcp-config"), "the planner is the learner's normal Claude Code");
+		assert.ok(launch.freshArgs.includes("--append-system-prompt-file"));
+	});
 });
 

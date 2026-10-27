@@ -14,6 +14,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import { stores } from "../stores.ts";
 import { bridgeTokenMatches } from "./token.ts";
 import { callTool, listTools } from "./tools.ts";
+import { callPlannerTool, PLANNER_ID, PLANNER_TOOLS } from "./planner.ts";
 
 const PROGRESS_MS = 30_000;
 
@@ -26,7 +27,7 @@ function jsonSchema(schema: unknown): Record<string, unknown> {
 function buildServer(chatId: string): Server {
 	const server = new Server({ name: "learnharness", version: "1.0.0" }, { capabilities: { tools: {} } });
 	server.setRequestHandler(ListToolsRequestSchema, async () => ({
-		tools: listTools(chatId).map((t) => ({ name: t.name, description: t.description, inputSchema: jsonSchema(t.inputSchema) as never })),
+		tools: (chatId === PLANNER_ID ? PLANNER_TOOLS : listTools(chatId)).map((t) => ({ name: t.name, description: t.description, inputSchema: jsonSchema(t.inputSchema) as never })),
 	}));
 	server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
 		const token = request.params._meta?.progressToken;
@@ -41,7 +42,10 @@ function buildServer(chatId: string): Server {
 							.catch(() => undefined);
 					}, PROGRESS_MS);
 		try {
-			const result = await callTool(chatId, request.params.name, request.params.arguments ?? {}, extra.signal);
+			const result =
+				chatId === PLANNER_ID
+					? await callPlannerTool(request.params.name, request.params.arguments ?? {}, extra.signal)
+					: await callTool(chatId, request.params.name, request.params.arguments ?? {}, extra.signal);
 			return {
 				content: [
 					{ type: "text" as const, text: result.text },
@@ -63,7 +67,7 @@ export async function handleMcpRequest(req: Request): Promise<Response> {
 		return Response.json({ error: "Invalid LearnHarness bridge token" }, { status: 401 });
 	}
 	const chatId = new URL(req.url).searchParams.get("chat") ?? "";
-	if (!chatId || !stores.chatStore.getChat(chatId)) {
+	if (!chatId || (chatId !== PLANNER_ID && !stores.chatStore.getChat(chatId))) {
 		return Response.json({ error: "Unknown LearnHarness session" }, { status: 404 });
 	}
 	const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: false });

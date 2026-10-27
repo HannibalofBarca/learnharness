@@ -12,6 +12,7 @@
 
 import { stores } from "../stores.ts";
 import { rememberClaudeSession } from "./launch.ts";
+import { PLANNER_ID, rememberPlannerSession } from "./planner.ts";
 import { claudeSession } from "./session.ts";
 import { bridgeTokenMatches } from "./token.ts";
 
@@ -24,6 +25,12 @@ export async function handleClaudeHook(req: Request): Promise<Response> {
 		return Response.json({ error: "Invalid LearnHarness bridge token" }, { status: 401 });
 	}
 	const chatId = new URL(req.url).searchParams.get("chat") ?? "";
+	if (chatId === PLANNER_ID) {
+		// The planner talks in its terminal: record its conversation, never block.
+		const body = (await req.json().catch(() => ({}))) as { session_id?: unknown };
+		if (typeof body.session_id === "string" && body.session_id) rememberPlannerSession(body.session_id);
+		return Response.json({});
+	}
 	if (!stores.chatStore.getChat(chatId)) return Response.json({});
 	let payload: { session_id?: unknown; stop_hook_active?: unknown; hook_event_name?: unknown } = {};
 	try {
