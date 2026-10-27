@@ -11,7 +11,9 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
 	const url = new URL(req.url);
 	const chatId = url.searchParams.get("chat") ?? "";
-	const launch = claudeLaunch(chatId, url.origin);
+	// The server listens on 127.0.0.1 only; "localhost" may resolve to ::1.
+	const origin = url.hostname === "localhost" ? `${url.protocol}//127.0.0.1:${url.port}` : url.origin;
+	const launch = claudeLaunch(chatId, origin);
 	if (!launch) return Response.json({ error: "Unknown chat" }, { status: 404 });
 	return Response.json(launch, { headers: { "Cache-Control": "no-store" } });
 }

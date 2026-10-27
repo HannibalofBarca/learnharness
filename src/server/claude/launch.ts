@@ -157,11 +157,9 @@ export function claudeLaunch(chatId: string, origin: string): ClaudeLaunch | nul
 	];
 	for (const drive of extraDrives()) common.push("--add-dir", drive);
 
-	const map = readSessionMap();
-	const existing = map[chatId];
-	const fresh = randomUUID();
-	map[chatId] = existing ?? fresh;
-	if (!existing) fs.writeFileSync(SESSION_MAP, JSON.stringify(map, null, "\t"), "utf-8");
+	// The conversation id is recorded by the Stop hook (the id Claude really
+	// used), so a launch that never got going leaves nothing to resume.
+	const existing = readSessionMap()[chatId];
 	const kickoff = record.messages.length > 0
 		? "Begin: call resume_session, then continue the session in the LearnHarness window."
 		: "Begin: call wait_for_learner to receive the learner's topic.";
@@ -169,7 +167,7 @@ export function claudeLaunch(chatId: string, origin: string): ClaudeLaunch | nul
 		cwd: TUTOR_CWD,
 		command: "claude",
 		...(existing ? { resumeArgs: [...common, "--resume", existing, "The LearnHarness window reopened this session. Call resume_session, then continue."] } : {}),
-		freshArgs: [...common, "--session-id", existing ? randomUUID() : fresh, kickoff],
+		freshArgs: [...common, "--session-id", randomUUID(), kickoff],
 	};
 }
 

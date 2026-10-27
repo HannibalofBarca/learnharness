@@ -30,6 +30,7 @@ const { attachChatGPTChild, trustedSender, chatGPTControl } = require("./chatgpt
 const { createSubscriptions, loadSubscriptionSDK } = require("./subscriptions.cjs");
 const { attachSubscriptionChild, subscriptionControl } = require("./subscription-ipc.cjs");
 const { desktopAPIHeaders } = require("./desktop-api.cjs");
+const { createTerminalHost } = require("./claude-terminal.cjs");
 const { openWebSubscriptionBrowser } = require("./web-subscription-browser.cjs");
 const { randomBytes } = require("node:crypto");
 const { spawn } = require("node:child_process");
@@ -708,6 +709,25 @@ async function main() {
 		if (!devUrl || !trustedAppWindows.has(BrowserWindow.fromWebContents(event.sender)) || !trustedSender(event, new URL(url).origin, BrowserWindow)) throw new Error("Untrusted development request.");
 		await openWebSubscriptionBrowser(action, new URL(url).origin, { openExternal: (target) => shell.openExternal(target) });
 	});
+
+	// The embedded tutor terminal (docs/claude-code-bridge.md): one pty per
+	// session, launched with the server's pre-wired Claude Code argv.
+	const trusted = (event) => trustedAppWindows.has(BrowserWindow.fromWebContents(event.sender)) && trustedSender(event, new URL(url).origin, BrowserWindow);
+	const terminals = createTerminalHost({
+		serverUrl: () => new URL(url).origin,
+		secret: () => desktopAPISecret,
+		onData: (chatId, data) => { for (const win of trustedAppWindows) if (!win.isDestroyed()) win.webContents.send("lh:terminal:data", chatId, data); },
+		onExit: (chatId, code) => { for (const win of trustedAppWindows) if (!win.isDestroyed()) win.webContents.send("lh:terminal:exit", chatId, code); },
+		log,
+	});
+	app.on("before-quit", () => terminals.killAll());
+	ipcMain.handle("lh:terminal:open", async (event, chatId, cols, rows) => {
+		if (!trusted(event)) throw new Error("Untrusted desktop request.");
+		return terminals.open(String(chatId), Number(cols) || 80, Number(rows) || 24);
+	});
+	ipcMain.on("lh:terminal:input", (event, chatId, data) => { if (trusted(event)) terminals.write(String(chatId), data); });
+	ipcMain.on("lh:terminal:resize", (event, chatId, cols, rows) => { if (trusted(event)) terminals.resize(String(chatId), Number(cols), Number(rows)); });
+	ipcMain.on("lh:terminal:kill", (event, chatId) => { if (trusted(event)) terminals.kill(String(chatId)); });
 
 	installMenu();
 

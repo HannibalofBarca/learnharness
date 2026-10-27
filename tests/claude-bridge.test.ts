@@ -160,4 +160,32 @@ describe("claude bridge", () => {
 		const second = (await (await hook({ session_id: "s1", stop_hook_active: true })).json()) as { decision?: string };
 		assert.equal(second.decision, undefined);
 	});
+	it("graph tools: extract a session stretch, submit findings + links, merge into the graph", async () => {
+		const id = newChat();
+		await callTool(id, "send_to_user", { message: "The derivative of $x^2$ is $2x$ because the secant slope $(2x+h)$ tends to $2x$ as $h \to 0$." }, never);
+		runningTurn(id)?.abort();
+		await settle();
+		const stretch = await callTool(id, "graph_extract_next", {}, never);
+		assert.ok(!stretch.isError, stretch.text);
+		const anchor = /TEACHER \[([^\]]+)\]/.exec(stretch.text)?.[1];
+		assert.ok(anchor, "the view labels teacher passages with their message id");
+		const bad = await callTool(id, "graph_submit_findings", { propositions: [{ id: "p1", name: "power rule", statement: "d/dx x^2 = 2x", messageId: "nope" }], chains: [] }, never);
+		assert.equal(bad.isError, true, "an anchor outside the stretch is refused");
+		const audit = await callTool(id, "graph_submit_findings", {
+			propositions: [
+				{ id: "p1", name: "secant slope", statement: "The secant slope of x^2 over [x, x+h] is 2x+h.", messageId: anchor },
+				{ id: "p2", name: "derivative of x^2", statement: "The derivative of x^2 is 2x.", messageId: anchor },
+			],
+			chains: [{ premises: ["p1"], conclusion: "p2" }],
+		}, never);
+		assert.ok(!audit.isError, audit.text);
+		assert.match(audit.text, /graph_submit_links/);
+		const merged = await callTool(id, "graph_submit_links", { links: [] }, never);
+		assert.match(merged.text, /Merged: 2 node/);
+		const again = await callTool(id, "graph_extract_next", {}, never);
+		assert.match(again.text, /Nothing left/);
+		const { stores } = await import("../src/server/stores.ts");
+		assert.ok(stores.graphStore.readNodes().length >= 2);
+	});
 });
+

@@ -30,6 +30,7 @@ import type { ChatRecord } from "../../core/contracts.ts";
 import { effectiveSettings, stores } from "../stores.ts";
 import { startBridgeTurn } from "../chat-handler.ts";
 import { block, claudeSession, serialized, type ClaudeSession } from "./session.ts";
+import { callGraphTool, GRAPH_TOOLS } from "./graph-tools.ts";
 
 export type Phase = "prober" | "teacher" | "practice";
 
@@ -117,6 +118,7 @@ export function listTools(chatId: string): ListedTool[] {
 		}
 	}
 	for (const tool of BRIDGE_TOOLS) byName.set(tool.name, tool);
+	if (record?.kind !== "practice") for (const tool of GRAPH_TOOLS) byName.set(tool.name, tool);
 	return [...byName.values()];
 }
 
@@ -220,13 +222,20 @@ async function runCall(session: ClaudeSession, chatId: string, name: string, raw
 		const text = await block(session, "wait", signal);
 		return { text: `The learner wrote:\n\n${text}` };
 	}
-	if (name === "resume_session") return { text: resumeText(record) };
+	if (name === "resume_session") {
+		// The record already holds anything queued — never hand it over twice.
+		session.inbox = [];
+		return { text: resumeText(record) };
+	}
 	if (name === "set_title") {
 		const title = String((rawArgs as { title?: unknown })?.title ?? "").trim();
 		if (!title) return { text: "set_title needs a non-empty title.", isError: true };
 		stores.chatStore.renameChat(chatId, title.slice(0, 120));
 		return { text: `Session titled "${title}".` };
 	}
+
+	const graph = await callGraphTool(chatId, name, rawArgs, signal);
+	if (graph) return graph;
 
 	if (session.stopRequested) {
 		session.stopRequested = false;
