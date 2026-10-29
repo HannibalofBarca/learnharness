@@ -16,6 +16,7 @@ import { after, describe, it } from "node:test";
 const TMP_DATA = fs.mkdtempSync(path.join(os.tmpdir(), "lh-bridge-"));
 process.env.LH_DATA_DIR = TMP_DATA;
 process.env.LH_UPDATE_FLUSH_MS = "1";
+process.env.LH_CODE_WORKSPACES = path.join(TMP_DATA, "code");
 
 const { chatStore } = await import("../src/store/chats.ts");
 const { callTool, listTools, validateArguments, phaseTools } = await import("../src/server/claude/tools.ts");
@@ -242,6 +243,42 @@ describe("claude bridge", () => {
 		const launch = plannerLaunch("http://127.0.0.1:4321");
 		assert.ok(!launch.freshArgs.includes("--restricted") && !launch.freshArgs.includes("--strict-mcp-config"), "the planner is the learner's normal Claude Code");
 		assert.ok(launch.freshArgs.includes("--append-system-prompt-file"));
+	});
+	it("coding chats: a lesson opens one with coding_open; it launches in its workspace with a shell and the IDE link", async () => {
+		const { claudeLaunch, bridgePrompt } = await import("../src/server/claude/launch.ts");
+		const { resumeText } = await import("../src/server/claude/tools.ts");
+		const lesson = newChat();
+		chatStore.renameChat(lesson, "Policy gradients");
+		assert.ok(listTools(lesson).some((t) => t.name === "coding_open"), "lessons can open a coding chat");
+		assert.ok((await callTool(lesson, "coding_open", { folder: "../escape", brief: "x" }, never)).isError, "a folder is one path segment");
+		const opened = await callTool(lesson, "coding_open", { folder: "cs285-hw2", brief: "CS285 HW2: policy gradients, Python 3.10." }, never);
+		assert.ok(!opened.isError, opened.text);
+		const codeId = /\/chat\/(chat_[A-Za-z0-9_]+)/.exec(opened.text)![1]!;
+		chatIds.add(codeId);
+		const code = chatStore.getChat(codeId)!;
+		const workspace = path.join(TMP_DATA, "code", "cs285-hw2");
+		assert.equal(code.kind, "code");
+		assert.equal(code.workspace, workspace);
+		assert.equal(code.lessonChatId, lesson);
+		assert.ok(fs.existsSync(workspace), "the workspace folder exists");
+		assert.match(String((code.messages[0] as { content: unknown }).content), /Workspace: [\s\S]*CS285 HW2/);
+		const again = await callTool(lesson, "coding_open", { folder: "cs285-hw2", brief: "again" }, never);
+		assert.ok(again.text.startsWith("Reopened") && again.text.includes(codeId), "the same lesson + folder reuses its coding chat");
+
+		const names = listTools(codeId).map((t) => t.name);
+		for (const n of ["send_to_user", "ask_user_question", "wait_for_learner", "resume_session", "graph_extract_next"]) assert.ok(names.includes(n), n);
+		for (const n of ["probe", "probe_done", "plan_init", "quiz", "coding_open"]) assert.ok(!names.includes(n), n);
+		assert.match(resumeText(chatStore.getChat(codeId)!), /Workspace: [\s\S]*Lesson this coding chat belongs to: Policy gradients/);
+
+		assert.match(bridgePrompt("code"), /coding helper/);
+		const launch = claudeLaunch(codeId, "http://127.0.0.1:4321")!;
+		assert.equal(launch.cwd, workspace);
+		assert.ok(launch.freshArgs.includes("--ide") && !launch.freshArgs.includes("--restricted"));
+		const tools = launch.freshArgs[launch.freshArgs.indexOf("--tools") + 1]!;
+		assert.ok(/(^|,)Bash(,|$)/.test(tools) && /(^|,)Edit(,|$)/.test(tools), tools);
+		const allowed = launch.freshArgs[launch.freshArgs.indexOf("--allowedTools") + 1]!;
+		assert.ok(allowed.includes("Edit(//") && allowed.includes("/cs285-hw2/**)"), "edits are pre-approved inside the workspace only");
+		assert.ok(!/(^|,)Edit(,|$)/.test(allowed), allowed);
 	});
 });
 

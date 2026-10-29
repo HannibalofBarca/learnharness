@@ -16,7 +16,7 @@
 import { randomUUID } from "node:crypto";
 import { Type, type TSchema } from "typebox";
 import type { AgentTool, AgentToolResult } from "../../core/agent-types.ts";
-import { createProberTools, createTeacherTools } from "../../agent/tools.ts";
+import { askUserQuestionTool, createProberTools, createTeacherTools } from "../../agent/tools.ts";
 import { practiceTools } from "../../agent/tools/practice.ts";
 import { sendToUserTool } from "../../agent/tools/send-to-user.ts";
 import { withArgumentHeal } from "../../agent/tools/heal.ts";
@@ -30,8 +30,9 @@ import { startBridgeTurn } from "../chat-handler.ts";
 import { block, claudeSession, serialized, type ClaudeSession } from "./session.ts";
 import { callGraphTool, GRAPH_TOOLS } from "./graph-tools.ts";
 import { callDeliverTool, DELIVER_TOOLS } from "./deliver-tools.ts";
+import { callCodingTool, CODING_TOOLS } from "./coding.ts";
 
-export type Phase = "prober" | "teacher" | "practice";
+export type Phase = "prober" | "teacher" | "practice" | "code";
 
 /** Names Claude Code covers itself or the deliver tools replace — never
  *  listed even if a registry still carried them. */
@@ -66,6 +67,9 @@ export function phaseTools(chatId: string, phase: Phase): Record<string, AgentTo
 			...strip(practiceTools({ chatId, chatStore: stores.chatStore, graphNodes: () => stores.graphStore.readNodes(), ...(graph ? { graph } : {}) })),
 		};
 	}
+	// Coding chats (owner 2026-10-29): a conversational helper — no probe,
+	// no plan, no quizzes; it asks the learner a question when it must.
+	if (phase === "code") return { ...sendToUser, [askUserQuestionTool.name]: withArgumentHeal(askUserQuestionTool) };
 	const base = { chatId, chatStore: stores.chatStore };
 	if (phase === "prober") {
 		return { ...sendToUser, ...strip(createProberTools({ ...base, deliver: () => undefined, ...(graph ? { graphStore: stores.graphStore } : {}) }, effective.agent.tools)) };
@@ -75,6 +79,7 @@ export function phaseTools(chatId: string, phase: Phase): Record<string, AgentTo
 
 export function phaseOf(record: ChatRecord): Phase {
 	if (record.kind === "practice") return "practice";
+	if (record.kind === "code") return "code";
 	return hasProbeDone(record.messages) ? "teacher" : "prober";
 }
 
@@ -105,7 +110,7 @@ const BRIDGE_TOOLS: ListedTool[] = [
 /** Every tool Claude can call in a chat of this kind (union of its phases). */
 export function listTools(chatId: string): ListedTool[] {
 	const record = stores.chatStore.getChat(chatId);
-	const phases: Phase[] = record?.kind === "practice" ? ["practice"] : ["prober", "teacher"];
+	const phases: Phase[] = record?.kind === "practice" ? ["practice"] : record?.kind === "code" ? ["code"] : ["prober", "teacher"];
 	const byName = new Map<string, ListedTool>();
 	for (const phase of phases) {
 		for (const tool of Object.values(phaseTools(chatId, phase))) {
@@ -114,6 +119,7 @@ export function listTools(chatId: string): ListedTool[] {
 	}
 	for (const tool of BRIDGE_TOOLS) byName.set(tool.name, tool);
 	if (record?.kind !== "practice") for (const tool of GRAPH_TOOLS) byName.set(tool.name, tool);
+	if ((record?.kind ?? "teach") === "teach") for (const tool of CODING_TOOLS) byName.set(tool.name, tool);
 	for (const tool of DELIVER_TOOLS) byName.set(tool.name, tool);
 	return [...byName.values()];
 }
@@ -172,6 +178,7 @@ const STOPPED =
 // ─── resume_session ─────────────────────────────────────────────────────────
 
 const RESUME_TAIL_CHARS = 12_000;
+const LESSON_TAIL_CHARS = 6_000;
 
 export function resumeText(record: ChatRecord): string {
 	const phase = phaseOf(record);
@@ -180,7 +187,22 @@ export function resumeText(record: ChatRecord): string {
 	const history = sessionMarkdown(record.messages);
 	const tail = history.length > RESUME_TAIL_CHARS ? `…(earlier history omitted)…\n${history.slice(-RESUME_TAIL_CHARS)}` : history;
 	lines.push("", "Recent history:", tail || "(none yet)");
+	if (record.kind === "code") lines.push("", ...codingContext(record));
 	return lines.join("\n");
+}
+
+/** A coding chat's workspace and the lesson it was opened from (its plan
+ *  and recent history, shorter than this session's own). */
+function codingContext(record: ChatRecord): string[] {
+	const lines = [`Workspace: ${record.workspace ?? "(none)"}`];
+	const lesson = record.lessonChatId ? stores.chatStore.getChat(record.lessonChatId) : null;
+	if (!lesson) return [...lines, "Lesson: (not found)"];
+	lines.push("", `Lesson this coding chat belongs to: ${lesson.title}`);
+	if (lesson.tree) lines.push("Lesson plan:", "```json", JSON.stringify(lesson.tree.nodes ?? lesson.tree, null, 1), "```");
+	const history = sessionMarkdown(lesson.messages);
+	const tail = history.length > LESSON_TAIL_CHARS ? `…(earlier lesson history omitted)…\n${history.slice(-LESSON_TAIL_CHARS)}` : history;
+	lines.push("", "Lesson recent history:", tail || "(none)");
+	return lines;
 }
 
 // ─── the call ───────────────────────────────────────────────────────────────
@@ -215,6 +237,9 @@ async function runCall(session: ClaudeSession, chatId: string, name: string, raw
 	const graph = await callGraphTool(chatId, name, rawArgs, signal);
 	if (graph) return graph;
 
+	const coding = callCodingTool(chatId, name, rawArgs);
+	if (coding) return coding;
+
 	if (session.stopRequested) {
 		session.stopRequested = false;
 		return { text: STOPPED, isError: true };
@@ -226,7 +251,7 @@ async function runCall(session: ClaudeSession, chatId: string, name: string, raw
 	const phase = phaseOf(record);
 	const tool = phaseTools(chatId, phase)[name];
 	if (!tool) {
-		const elsewhere = (["prober", "teacher", "practice"] as Phase[]).find((p) => p !== phase && phaseTools(chatId, p)[name]);
+		const elsewhere = (["prober", "teacher", "practice", "code"] as Phase[]).find((p) => p !== phase && phaseTools(chatId, p)[name]);
 		const why = elsewhere ? `"${name}" belongs to the ${elsewhere} phase; this session is in the ${phase} phase.` : `Unknown tool "${name}".`;
 		return { text: why, isError: true };
 	}

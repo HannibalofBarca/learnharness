@@ -24,8 +24,10 @@ import type { EmissionStats } from "./graph.ts";
 /** The session's kind (practice sessions, owner 2026-10-04): "teach" is
  *  the default and ABSENT on pre-practice records (no migration — absence
  *  reads as teach); "practice" marks an adaptive-practice session — the
- *  practice agent, its two tools, no extraction, no graph writes. */
-export type ChatKind = "teach" | "practice";
+ *  practice agent, its two tools, no extraction, no graph writes; "code"
+ *  marks a coding chat (owner 2026-10-29) — opened from a lesson by
+ *  coding_open, run in its own workspace folder with a shell. */
+export type ChatKind = "teach" | "practice" | "code";
 
 export interface ChatRecord {
 	id: string;
@@ -35,6 +37,10 @@ export interface ChatRecord {
 	messages: LhMessage[];
 	/** The session's kind — absent = teach (pre-practice records). */
 	kind?: ChatKind;
+	/** Coding chats: the workspace folder the tutor runs in (absolute). */
+	workspace?: string;
+	/** Coding chats: the lesson chat that opened this one. */
+	lessonChatId?: string;
 	/** The session's plan tree (vision §2) — written by plan tools via saveTree. */
 	tree?: PlanTree;
 	/** Append-only usage log (observability, 2026-09): one entry per model

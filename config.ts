@@ -1,3 +1,4 @@
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,6 +18,13 @@ export const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DATA_ROOT = process.env.LH_DATA_DIR
 	? path.resolve(process.env.LH_DATA_DIR)
 	: path.join(ROOT, "data");
+
+/** Coding chats' workspaces (owner 2026-10-29): one folder per coding
+ *  topic, outside the data dir (it is the learner's code, not app state).
+ *  LH_CODE_WORKSPACES relocates it (tests). */
+export const CODE_WORKSPACES = process.env.LH_CODE_WORKSPACES
+	? path.resolve(process.env.LH_CODE_WORKSPACES)
+	: path.join(os.homedir(), "source", "Harness Homework", "scripts");
 
 export const PATHS = {
 	root: ROOT,

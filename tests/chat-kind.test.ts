@@ -38,6 +38,14 @@ describe("session kind (practice sessions, 2026-10-04)", () => {
 		assert.equal(listed?.kind, "practice");
 	});
 
+	it("createChat(kind: 'code') stamps the marker plus its workspace and lesson link", () => {
+		const chat = chatStore.createChat("coding chat", "code", { workspace: "/w/hw1", lessonChatId: "chat_lesson" });
+		assert.equal(chat.kind, "code");
+		assert.equal(chat.workspace, "/w/hw1");
+		assert.equal(chat.lessonChatId, "chat_lesson");
+		assert.equal(chatStore.listChats().find((c) => c.id === chat.id)?.kind, "code");
+	});
+
 	it("the summary projection NORMALIZES: absent record field reads as teach", () => {
 		const chat = chatStore.createChat("another plain one");
 		const listed = chatStore.listChats().find((c) => c.id === chat.id);
