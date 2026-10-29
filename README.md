@@ -1,6 +1,6 @@
 # ClaudeHarness
 
-A fork of [LearnHarness](https://github.com/amosblomqvist/learnharness) where your own **Claude Code** is the tutor. No API keys, no app-side AI: LearnHarness keeps its method, GUI and tools; Claude does the thinking.
+A fork of [LearnHarness](https://github.com/amosblomqvist/learnharness) where your own **Claude Code** is the tutor. No API keys: LearnHarness keeps its method, GUI and tools.
 
 | Change | What |
 |---|---|
