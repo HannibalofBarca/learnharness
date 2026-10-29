@@ -51,7 +51,7 @@ function writeTree(nodes: TreeNode[]): void {
 // ─── pure helpers ───────────────────────────────────────────────────────────
 
 /** The identity of a title: case, spacing and punctuation don't count. */
-const titleKey = (title: string): string => title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const titleKey = (title: string): string => title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
 function newId(nodes: readonly TreeNode[], title: string): string {
 	const base = titleKey(title).replace(/ /g, "-").slice(0, 48).replace(/-+$/, "") || "node";
