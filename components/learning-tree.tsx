@@ -160,15 +160,15 @@ export function LearningTree() {
 	const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n] as const)), [nodes]);
 
 	// ── pan/zoom (the plan popup's fit-floor semantics, pan-zoom.ts) ──
-	const viewportRef = useRef<HTMLDivElement>(null);
+	// State, not a ref: the viewport mounts only once the tree has loaded, and the effects below must run then.
+	const [el, setEl] = useState<HTMLDivElement | null>(null);
 	const [size, setSize] = useState({ w: 0, h: 0 });
 	useEffect(() => {
-		const el = viewportRef.current;
 		if (!el || typeof ResizeObserver === "undefined") return;
 		const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
 		ro.observe(el);
 		return () => ro.disconnect();
-	}, []);
+	}, [el]);
 	const box = useMemo(() => ({ w: layout.width + 2 * PAD, h: layout.height + 2 * PAD }), [layout]);
 	const fitZoom = useMemo(() => fitZoomFor(box, size), [box, size]);
 	const [cam, setCam] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
@@ -182,7 +182,6 @@ export function LearningTree() {
 		setCam(fitGraphView(box, size, fitZoom));
 	}, [fitZoom, size, box]);
 	useEffect(() => {
-		const el = viewportRef.current;
 		if (!el) return;
 		const onWheel = (e: WheelEvent) => {
 			e.preventDefault();
@@ -193,7 +192,7 @@ export function LearningTree() {
 		};
 		el.addEventListener("wheel", onWheel, { passive: false });
 		return () => el.removeEventListener("wheel", onWheel);
-	}, [fitZoom, box, size]);
+	}, [el, fitZoom, box, size]);
 
 	const [panning, setPanning] = useState(false);
 	const drag = useRef<{ px: number; py: number; x: number; y: number; moved: boolean } | null>(null);
@@ -251,7 +250,7 @@ export function LearningTree() {
 
 	return (
 		<div
-			ref={viewportRef}
+			ref={setEl}
 			data-testid="learning-tree"
 			className={cn("relative h-full w-full touch-none overflow-hidden select-none", atFloor ? "cursor-default" : panning ? "cursor-grabbing" : "cursor-grab")}
 			onPointerDown={startDrag}
