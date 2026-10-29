@@ -31,6 +31,9 @@ interface TreeData {
 const POLL_MS = 3000;
 const PAD = 24;
 const COLLAPSED_KEY = "lh-tree-collapsed";
+/** Topics (non-group nodes) draw as dots of this box size; their title shows on hover. */
+const DOT = 12;
+const DOT_GAP = 10;
 
 const edgeLine = line<{ x: number; y: number }>()
 	.x((p) => p.x)
@@ -92,6 +95,11 @@ const BOX: Record<TreeStatus, string> = {
 	learning: "fill-yellow-400/10 stroke-yellow-400/80",
 	done: "fill-emerald-500/15 stroke-emerald-500/80",
 };
+const DOT_FILL: Record<TreeStatus, string> = {
+	todo: "fill-muted-foreground/60 stroke-muted-foreground/80",
+	learning: "fill-yellow-400 stroke-yellow-400",
+	done: "fill-emerald-500 stroke-emerald-500",
+};
 const TEXT: Record<TreeStatus, string> = {
 	todo: "fill-muted-foreground",
 	learning: "fill-foreground",
@@ -151,12 +159,13 @@ export function LearningTree() {
 			.filter((n) => shown.has(n.id))
 			.map((n) => {
 				const hidden = collapsed.has(n.id) ? descendants(n.id, children).size : 0;
-				return { id: n.id, title: hidden ? `${n.title} (+${hidden})` : n.title };
+				const title = hidden ? `${n.title} (+${hidden})` : n.title;
+				return n.kind === "group" ? { id: n.id, title } : { id: n.id, title, size: DOT };
 			});
 		const status = shownStatuses(nodes, children);
 		return { labelled, edges, status, children };
 	}, [nodes, collapsed]);
-	const layout = useMemo(() => blockLayout(view.labelled, view.edges), [view]);
+	const layout = useMemo(() => blockLayout(view.labelled, view.edges, DOT_GAP), [view]);
 	const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n] as const)), [nodes]);
 
 	// ── pan/zoom (the plan popup's fit-floor semantics, pan-zoom.ts) ──
@@ -301,20 +310,29 @@ export function LearningTree() {
 									if (view.children.has(n.id)) toggle(n.id);
 								}}
 							>
-								<rect
-									width={w}
-									height={h}
-									rx={group ? 0 : 6}
-									className={cn(BOX[status], n.id === selected && "stroke-white")}
-									strokeWidth={n.id === selected ? 2 : group ? 1.5 : 1}
-									strokeDasharray={node.kind === "practice" ? "5 3" : undefined}
-								/>
-								{lines.map((text, i) => (
-									<text key={i} x={w / 2} y={y0 + i * LINE_H} textAnchor="middle" className={cn("text-xs", TEXT[status], group && "font-semibold")}>
-										{text}
-									</text>
-								))}
-								{node.parents.length > 1 && <circle cx={w - 5} cy={5} r={2.5} className="fill-sky-400" aria-label={`under ${node.parents.length} parents`} />}
+								<title>{n.title}</title>
+								{group ? (
+									<>
+										<rect width={w} height={h} className={cn(BOX[status], n.id === selected && "stroke-white")} strokeWidth={n.id === selected ? 2 : 1.5} />
+										{lines.map((text, i) => (
+											<text key={i} x={w / 2} y={y0 + i * LINE_H} textAnchor="middle" className={cn("text-xs font-semibold", TEXT[status])}>
+												{text}
+											</text>
+										))}
+										{node.parents.length > 1 && <circle cx={w - 5} cy={5} r={2.5} className="fill-sky-400" aria-label={`under ${node.parents.length} parents`} />}
+									</>
+								) : (
+									<>
+										<rect x={-4} y={-4} width={w + 8} height={h + 8} fill="transparent" />
+										<circle
+											cx={w / 2}
+											cy={h / 2}
+											r={w / 2 - 1}
+											className={cn(DOT_FILL[status], node.kind === "practice" && "fill-transparent", n.id === selected && "stroke-white")}
+											strokeWidth={n.id === selected ? 2 : node.kind === "practice" ? 1.5 : 0}
+										/>
+									</>
+								)}
 							</g>
 						);
 					})}
@@ -362,7 +380,7 @@ export function LearningTree() {
 			)}
 
 			<div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between p-2">
-				<span className="text-xs text-muted-foreground/60">Click a topic for details · double-click to collapse · drag to pan · scroll to zoom</span>
+				<span className="text-xs text-muted-foreground/60">Hover a dot for its topic · click for details · double-click to collapse · drag to pan · scroll to zoom</span>
 				<div className="flex gap-1">
 					{[
 						{ label: "Zoom out", icon: <MinusIcon className="size-3.5" />, run: () => stepZoom(1 / 1.25) },
