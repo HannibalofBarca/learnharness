@@ -1,8 +1,4 @@
-/**
- * GET /api/claude/launch?chat=<id> — the desktop shell's terminal asks for
- * the pre-wired Claude Code argv for one session (desktop-header gated by
- * the proxy like every other API route). Writes the per-chat launch files.
- */
+/** GET /api/claude/launch?chat=<id> — the desktop shell's terminal asks for the pre-wired Claude Code argv for one session (desktop-header gated by the */
 import { claudeLaunch, plannerLaunch, PLANNER_ID } from "@/src/server";
 
 export const runtime = "nodejs";

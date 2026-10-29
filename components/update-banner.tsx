@@ -1,15 +1,6 @@
 "use client";
 
-/**
- * The auto-update banner (Wave C, owner 2026-10-10: silent download +
- * restart-banner UX). The shell pushes "lh:update-status" once a staged
- * update exists (electron/main.cjs update-downloaded). Snapshot retrieval
- * also covers a late load. The card offers Restart alongside Settings.
- * Browser builds have no window.lh and never see a push: renders null.
- *
- * No dismiss: a downloaded update installs on quit anyway
- * (autoInstallOnAppQuit); the banner is a courtesy, not a gate.
- */
+/** The auto-update banner. */
 
 import { useUpdateState } from "@/components/settings/update-settings.tsx";
 

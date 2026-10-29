@@ -4,24 +4,7 @@ import { serverExecute } from "../tool-execute.ts";
 import { getGraph, graphSessionIndex, graphSessionPropositions } from "../../core/graph.ts";
 import type { ChatStore, GraphStore } from "../../core/ports.ts";
 
-/**
- * THE PROBER'S GRAPH TOOLS (wave 7, owner-locked 2026-09-23): context
- * injection is dead — zero configuration beyond chat models. The prober
- * reads the learner's persistent knowledge map through two tools instead,
- * replacing the old injected block with on-demand eyes.
- *
- * Names + levels + dating ONLY — no statement text, no session contents
- * (owner ruling: the map's ORGANIZATION is the prober's business, its
- * prose is not). The data comes from Platform's pure core seams
- * (graphSessionIndex / graphSessionPropositions) over the same ports the
- * snapshot reads, so the prober and the learner's graph view can never
- * disagree.
- *
- * Registered on the prober ONLY when the settings gate opens
- * (graphToolsEnabled — the graph master switch AND the agent.graphTools
- * toggle); the composition root decides, the factory just receives the
- * store (absent = the gate is closed, no map tools — tests drive this).
- */
+/** THE PROBER'S GRAPH TOOLS: context injection is dead — zero configuration beyond chat models. */
 
 /** What the graph tools close over: the stores the session views read. */
 export interface GraphToolContext {
@@ -78,28 +61,11 @@ export function proberGraphTools(ctx: GraphToolContext): Record<string, AgentToo
 	};
 }
 
-// ─── the auditor's graph tools (2026-09-27 relink) ───────────────────────────
+// ─── the auditor's graph tools ───────────────────────────
 
-/**
- * THE AUDITOR'S TOOLSET — the extraction auditor explores the graph to
- * place new propositions instead of receiving it injected (owner ruling
- * 2026-09-27: a full-graph dump bloats context as the graph grows; the
- * auditor looks up identity candidates itself). Auditor-specific
- * versions, deliberately different from the prober's:
- *
- *   find              glob over node names + statements + aliases — the
- *                     identity workhorse; returns id + name + statement
- *                     (statement text is ESSENTIAL for identity work,
- *                     unlike the prober's names-only rule).
- *   list_sessions     the birth-session index, no timestamps.
- *   list_propositions full proposition text (same reasoning as find).
- *
- * No timestamps anywhere: identity work needs content, not chronology.
- * Read-only, pure core seams, same ports the snapshot reads.
- */
+/** THE AUDITOR'S TOOLSET — the extraction auditor explores the graph to place new propositions instead of receiving it injected. */
 
-/** Glob match — `*` spans anything, case-insensitive. `*needle*` is the
- *  expected shape; a bare term gets implicit surrounding stars. */
+/** Glob match — `*` spans anything, case-insensitive. */
 function globMatch(pattern: string, text: string): boolean {
 	const raw = pattern.includes("*") ? pattern : `*${pattern}*`;
 	const re = new RegExp(
@@ -132,10 +98,7 @@ export function auditorGraphTools(ctx: GraphToolContext): Record<string, AgentTo
 					(n) => globMatch(query, n.name) || globMatch(query, n.statement) || n.aliases.some((a) => globMatch(query, a)),
 				);
 				if (hits.length === 0) return `No existing proposition matches "${query}".`;
-				// BORN-IN POINTER (owner, 2026-09-29): a hit names its birth
-				// session(s) — find results now compose with list_propositions
-				// (read the whole session the hit came from) instead of being
-				// dead ends. Legacy no-provenance nodes name none.
+				// BORN-IN POINTER: a hit names its birth session(s)
 				const lines = hits.map((n) => {
 					const born = [...new Set(n.provenance.map((pt) => pt.chatId))];
 					return (

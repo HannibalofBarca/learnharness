@@ -1,13 +1,6 @@
-/**
- * Artifact download helpers (release polish, 2026-10-07): the tiny
- * save-a-blob seam shared by the demo + figure cards, plus the filename
- * slug. The slug is pure (test-pinned); downloadFile touches the DOM and
- * only runs on click.
- */
+/** Artifact download helpers: the tiny save-a-blob seam shared by the demo + figure cards, plus the filename slug. */
 
-/** Slugify a demo title into a filename stem — lowercase, accents folded,
- *  runs of non-alphanumerics collapsed to "-", trimmed, capped at 64
- *  chars. Empty/fully-symbolic titles fall back to "demo". */
+/** Slugify a demo title into a filename stem — lowercase, accents folded, runs of non-alphanumerics collapsed to "-", trimmed, capped at 64 chars. */
 export function slugFilename(title: string): string {
 	const slug = title
 		.toLowerCase()
@@ -19,8 +12,7 @@ export function slugFilename(title: string): string {
 	return slug || "demo";
 }
 
-/** Save text as a downloaded file. The blob URL is revoked right after the
- *  click — Chromium keeps the download alive past the revoke. */
+/** Save text as a downloaded file. */
 export function downloadFile(name: string, text: string, mime: string): void {
 	const blob = new Blob([text], { type: mime });
 	const url = URL.createObjectURL(blob);

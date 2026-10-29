@@ -1,11 +1,7 @@
 import type { AssistantMessage } from "./agent-types.ts";
 import type { LhMessage } from "./native-messages.ts";
 
-/** Latest completed conversation measurement, never a request-size estimate.
- * Ordered compaction markers invalidate every earlier reading. Live callers
- * must exclude assistant slots that have not received message_end.
- * Reasoning is already inside output; totalTokens is deliberately not used.
- */
+/** Latest completed conversation measurement, never a request-size estimate. */
 export function measuredContextTokens(
 	messages: readonly LhMessage[],
 	incompleteIds: ReadonlySet<string> = new Set(),

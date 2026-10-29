@@ -9,29 +9,9 @@ import { MermaidError } from "@/components/mermaid-error";
 import { Hint } from "@/components/ui/hint";
 import { SvgImage } from "@/components/artifacts/svg-image";
 
-/**
- * SESSION-SCOPED OVERLAYS (owner wave, 2026-09-19): the "fullscreen"
- * expansions — the plan focus, this mermaid focus — do NOT cover the app
- * chrome. They mount ABSOLUTE INSIDE THE SESSION AREA (the `relative` div
- * below the top bar, right of the sidebar, where the transcript and dock
- * live), so the 60px drag bar stays sharp, visible, and draggable and the X
- * can never land in drag territory — the old `fixed inset-0` overlays put it
- * exactly there, which is what drove this redesign. Surface: 80% background +
- * blur (user-decided) — the transcript ghosts through while the focus owns
- * the session area.
- *
- * The chart source registers from wherever it lives in the transcript
- * (md-blocks' expand button) via the context below; the CHAT PAGE owns the
- * open state so this overlay mounts as a sibling of the scroller inside the
- * session area — never inside it (an absolute inset-0 inside the scroller
- * would cover the scrollable extent, not the visible area).
- */
+/** SESSION-SCOPED OVERLAYS: the "fullscreen" expansions — the plan focus, this mermaid focus — do NOT cover the app chrome. */
 
-/** The expand seam: md-blocks' mermaid hover button calls openMermaid with
- *  the chart source; the figure card's fullscreen button calls openFigure
- *  with the raw svg (+ its invert state). The chat page (which provides
- *  this context) opens the overlay. Null when no chat page is mounted
- *  (sidebar previews etc.) — the buttons simply don't render there. */
+/** The expand seam: md-blocks' mermaid hover button calls openMermaid with the chart source */
 export const SessionMermaidContext = createContext<{
 	openMermaid: (chart: string) => void;
 	openFigure: (svg: string, inverted: boolean) => void;
@@ -41,11 +21,7 @@ export function useSessionMermaid() {
 	return useContext(SessionMermaidContext);
 }
 
-/** A chart svg's natural size — mermaid always emits a viewBox; this is the
- *  extent at zoom 1 (1 svg unit = 1 px), like the plan diagram's natural
- *  size. Figure svgs (2026-10-07) may declare width/height instead — that
- *  pair is the fallback. The final fallback covers a degenerate svg with
- *  neither. Pure. */
+/** A chart svg's natural size — mermaid always emits a viewBox; this is the extent at zoom 1 (1 svg unit = 1 px), like the plan diagram's natural size. */
 export function chartSize(svg: string): { w: number; h: number } {
 	const m = /<svg[^>]*\bviewBox="([\d.eE+-]+)\s+([\d.eE+-]+)\s+([\d.eE+-]+)\s+([\d.eE+-]+)"/.exec(svg);
 	if (m) {
@@ -65,14 +41,7 @@ export function chartSize(svg: string): { w: number; h: number } {
 	return { w: 600, h: 400 };
 }
 
-/** The diagram focus: the chart at natural size inside a pan/zoom viewport
- *  (the plan popup's fit-floor semantics — fitGraphView/zoomedGraphView in
- *  pan-zoom.ts), Esc/X close. Renders its own copy of the chart (mermaid
- *  ids are per-render), not the injected inline svg. FIGURE MODE
- *  (2026-10-07): pass a raw `svg` instead of a mermaid `chart` — the same
- *  shell then focuses a figure card's svg on a white stage, with the
- *  caller's invert state carried over (the filter rides the white stage,
- *  exactly like the in-card holder). */
+/** The diagram focus: the chart at natural size inside a pan/zoom viewport (the plan popup's fit-floor semantics */
 export function MermaidOverlay({
 	chart,
 	svg: rawSvg,
@@ -110,9 +79,7 @@ export function MermaidOverlay({
 		};
 	}, [rawSvg, chart, attempt]);
 
-	// Esc closes — claimed at the document level (THE ONE-ESC LAW, owner
-	// keyboard round 2026-10-06): one Esc, one action; the window chain
-	// (dictation → abort) never fires under a surfaced layer.
+	// Esc closes — claimed at the document level: one Esc, one action; the window chain (dictation → abort) never fires under a surfaced layer.
 	useEffect(() => {
 		const onKey = (e: KeyboardEvent) => {
 			if (e.key === "Escape") {
@@ -212,10 +179,7 @@ export function MermaidOverlay({
 	return (
 		<div
 			data-testid="mermaid-overlay"
-			// SESSION-SCOPED (not fixed): mounts absolute inside the chat
-			// page's session-area div — below the drag bar, right of the
-			// sidebar. 80% + blur: the transcript ghosts through (owner
-			// decision, 2026-09-19).
+			// SESSION-SCOPED (not fixed): mounts absolute inside the chat page's session-area div — below the drag bar, right of the sidebar.
 			className="absolute inset-0 z-40 flex flex-col bg-background/80 p-4 backdrop-blur-sm"
 			role="dialog"
 			aria-modal="true"
@@ -258,11 +222,7 @@ export function MermaidOverlay({
 							style={{
 								width: `${box.w}px`,
 								transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`,
-								// Hidden until the first fit has APPLIED: the fit runs in an
-							// effect (after paint), and the chart would otherwise flash
-							// at the initial top-left zoom:1 state for a frame (the
-							// owner saw exactly that; transition-gating alone doesn't
-							// hide it — VISIBILITY must be gated on settled too).
+								// Hidden until the first fit has APPLIED: the fit runs in an effect (after paint)
 								opacity: settled ? 1 : 0,
 								transition:
 									panning || !settled
@@ -270,9 +230,7 @@ export function MermaidOverlay({
 										: "transform 180ms ease-out, opacity 160ms ease-out",
 							}}
 						>
-							{/* Figures share the card's image boundary and white backing.
-							    Mermaid keeps its inline renderer; globals.css removes
-							    its max-width cap so it fills the natural-size box. */}
+							{/* Figures share the card's image boundary and white backing. */}
 							{rawSvg !== undefined ? (
 								<div
 									data-lh-overlay-chart

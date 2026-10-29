@@ -5,40 +5,15 @@ import { createPortal } from "react-dom";
 import { useBackdropDismiss } from "@/components/backdrop-dismiss";
 import type { ChatDeleteMode, ChatListItem } from "@/src/core";
 
-/** The graph-traces checkbox copy (owner, 2026-09-24 flow rework — was
- *  the delete-nodes option's body in the two-button design): the
- *  graph-touching consequence says so, shared-topic survival included.
- *  Exported pure for render pins: the copy is design, not implementation. */
-export const TRACES_COPY = {
+/** The graph-traces checkbox copy: the graph-touching consequence says so, shared-topic survival included. */
+const TRACES_COPY = {
 	testid: "delete-traces",
 	checkbox: "delete-traces-checkbox",
 	title: "Also remove its graph traces",
 	body: "This session’s topics, links, and events leave the graph too. Topics other sessions or imported notes also cover survive; topics only this session created are removed entirely.",
 };
 
-/**
- * Session deletion (wave 6 chunk A; owner flow rework 2026-09-24) — THE
- * destructive-confirmation surface, portaled z-50 like the setup dialog,
- * now in the node dialog's shape (the two must read as one design):
- *
- *   - red title "Delete session?" in the abort-turn look (owner, 2026-10-13
- *     polish: text-sm font-semibold JetBrains Mono via the UI default —
- *     the serif display title is gone), the session name below it in
- *     JetBrains Mono at normal text-sm size (was sized-up text-lg), no
- *     code-block chrome;
- *   - ONE unchecked-by-default checkbox "Also remove its graph traces"
- *     (unchecked = preserve-graph: the session record, its jobs, and its
- *     extraction bookkeeping die; the graph keeps every contribution.
- *     checked = delete-nodes: the session's ledger traces go too);
- *   - a bottom row Cancel + destructive-red Delete, exactly the node
- *     dialog's pair.
- *
- * Retryable failures render honestly with a Try-again: 409 turn_in_flight /
- * jobs_running ("wait for running work") and 503 extraction_winding_down
- * ("in a moment") both clear on their own — the server's error line is
- * already written for the user; we show it verbatim. Try-again is just
- * Delete pressed again — the mode re-derives from the checkbox.
- */
+/** Session deletion — THE destructive-confirmation surface, portaled z-50 like the setup dialog */
 export function DeleteSessionDialog({
 	chat,
 	onClose,
@@ -55,10 +30,7 @@ export function DeleteSessionDialog({
 	const backdropDismiss = useBackdropDismiss(() => {
 		if (!busy) onClose();
 	});
-	// Retry IS pressing Delete again: the mode always derives from the
-	// checkbox's current state (a toggle between failure and retry is a
-	// change of intent, honored as such — the checkbox is disabled while
-	// busy, so no mid-flight switches).
+	// Retry IS pressing Delete again: the mode always derives from the checkbox's current state (a toggle between failure and retry is a change of intent
 	const [failure, setFailure] = useState<{ code: string; error: string } | null>(null);
 
 	// Fresh state per session: closing resets, opening a new chat starts clean.
@@ -101,8 +73,7 @@ export function DeleteSessionDialog({
 				graphRevision?: number;
 			};
 			if (!res.ok) {
-				// 409 (turn/jobs running) and 503 (extraction winding down) are
-				// both retryable — keep the dialog open, show the server's line.
+				// 409 (turn/jobs running) and 503 (extraction winding down) are both retryable — keep the dialog open, show the server's line.
 				setFailure({ code: body.code ?? "error", error: body.error ?? `Delete failed (${res.status})` });
 				setBusy(false);
 				return;
@@ -137,7 +108,7 @@ export function DeleteSessionDialog({
 
 /** The dialog's pure body — exported for SSR pins (the settings-dialog /
  *  node-dialog body pattern). The wrapper owns state + effects + portal. */
-export function DeleteSessionBody({
+function DeleteSessionBody({
 	chat,
 	traces,
 	busy,
@@ -165,11 +136,7 @@ export function DeleteSessionBody({
 			className="w-[32rem] max-w-[calc(100vw-2rem)] rounded-xl border bg-card p-5 shadow-xl"
 		>
 			<h2 className="text-sm font-semibold text-destructive">Delete session?</h2>
-			{/* The session name below the title in JetBrains Mono (owner,
-			    2026-09-24): no code-block chrome — the font already says
-			    code. Owner, 2026-10-13 polish: normal text-sm size (was
-			    sized-up text-lg), still white. Same shape as the node
-			    dialog. */}
+			{/* The session name below the title in JetBrains Mono: no code-block chrome — the font already says code. */}
 			<div className="mt-1.5">
 				<code data-testid="session-name-code" className="font-mono text-sm text-foreground">
 					{chat.title}
@@ -214,9 +181,7 @@ export function DeleteSessionBody({
 					</button>
 				</div>
 			)}
-			{/* The node dialog's exact bottom row: quiet Cancel, destructive
-			    red Delete (border + text, fill on hover — the app's
-			    established destructive pair). */}
+			{/* The node dialog's exact bottom row: quiet Cancel, destructive red Delete (border + text, fill on hover — the app's established destructive pair). */}
 			<div className="mt-4 flex justify-end gap-2">
 				<button
 					type="button"

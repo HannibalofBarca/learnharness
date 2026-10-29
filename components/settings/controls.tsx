@@ -1,13 +1,5 @@
 "use client";
-/**
- * Thin settings primitives (settings-app wave): the control kit the
- * settings dialog needs. Sections → groups → rows; everything SSRs clean
- * (render tests pin the sections' markup).
- *
- * The dependency graying (owner, 2026-09-20) follows the graph viewer's
- * render-panel convention: the WHOLE row dims (opacity-40, label and
- * control together) and the control itself locks — the row owns the dim.
- */
+/** Thin settings primitives: the control kit the settings dialog needs. */
 
 import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
@@ -34,8 +26,7 @@ export function SettingsSection({
 	);
 }
 
-/** A labeled sub-group inside a section (owner, 2026-09-20: clear
- *  separation — Models / Tools / Prompts read as three blocks). */
+/** A labeled sub-group inside a section. */
 export function SettingsGroup({
 	label,
 	children,
@@ -53,8 +44,7 @@ export function SettingsGroup({
 	);
 }
 
-/** One label + one control. Label left (with optional muted hint), control
- *  right — the settings row shape. */
+/** One label + one control. */
 export function SettingsRow({
 	label,
 	hint,
@@ -66,8 +56,7 @@ export function SettingsRow({
 	hint?: ReactNode;
 	children: React.ReactNode;
 	testid?: string;
-	/** Dependency graying, graph-view style: the whole row dims when the
-	 *  control is inert (parent off, no file yet, …). */
+	/** Dependency graying, graph-view style: the whole row dims when the control is inert (parent off, no file yet, …). */
 	dimmed?: boolean;
 }) {
 	return (
@@ -95,9 +84,7 @@ export function Toggle({
 	onChange: (next: boolean) => void;
 	/** Accessible name for the switch role. */
 	label: string;
-	/** Optional icon disc (owner round, 2026-10-07): the figure cards' invert
-	 *  toggle renders the half-filled contrast circle AS the disc — the icon
-	 *  carries the meaning; plain toggles keep the plain disc. */
+	/** Optional icon disc: the figure cards' invert toggle renders the half-filled contrast circle AS the disc — the icon carries the meaning */
 	discIcon?: ReactNode;
 	/** Optional native tooltip on the switch. */
 	title?: string;
@@ -114,15 +101,13 @@ export function Toggle({
 			onClick={() => onChange(!checked)}
 			className={cn(
 				"relative h-4.5 w-8 shrink-0 rounded-full border border-border transition-colors",
-				// Owner (2026-09-20): on is a gray track with a WHITE disc (a full-white
-				// track was too loud); off stays the muted track.
+				// Owner: on is a gray track with a WHITE disc (a full-white track was too loud); off stays the muted track.
 				checked ? "bg-muted-foreground" : "bg-muted",
 				disabled && "cursor-not-allowed",
 			)}
 		>
 			{discIcon ? (
-				// The icon IS the disc: same size, same slide, same state colors —
-				// only the knob's face changes (the invert affordance).
+				// The icon IS the disc: same size, same slide, same state colors — only the knob's face changes (the invert affordance).
 				<span
 					className={cn(
 						"absolute left-0 top-0.5 flex size-3 items-center justify-center rounded-full transition-transform",
@@ -135,8 +120,7 @@ export function Toggle({
 				<span
 					className={cn(
 						"absolute left-0 top-0.5 size-3 rounded-full transition-transform",
-						// 2px inset from each inner edge, both states (owner round: the on
-						// disc used to touch the pill's right edge).
+						// 2px inset from each inner edge, both states.
 						checked ? "translate-x-4 bg-foreground" : "translate-x-0.5 bg-muted-foreground",
 					)}
 				/>
@@ -178,8 +162,7 @@ export function ThinSelect({
 	);
 }
 
-/** A thin hex/text input committing on blur + Enter (settings pace, not
- *  typing pace — every commit is a section PUT). */
+/** A thin hex/text input committing on blur + Enter (settings pace, not typing pace — every commit is a section PUT). */
 export function CommitInput({
 	value,
 	placeholder,
@@ -188,10 +171,7 @@ export function CommitInput({
 	testid,
 	type = "text",
 }: {
-	/** "" = unset (the factory default). Mirrors the STORED record —
-	 *  after a clamped/normalized commit this flows back and the field
-	 *  snaps to the stored truth (owner repro: a negative size kept
-	 *  displaying "-5" while 12 was stored). */
+	/** "" = unset (the factory default). */
 	value: string;
 	placeholder?: string;
 	onCommit: (next: string) => void;
@@ -199,9 +179,7 @@ export function CommitInput({
 	testid?: string;
 	type?: "text" | "number";
 }) {
-	// The draft exists only while editing; a blur shows the record's value
-	// again — commit-on-blur/Enter (owner ruling), the field honest about
-	// what landed.
+	// The draft exists only while editing; a blur shows the record's value again — commit-on-blur/Enter, the field honest about what landed.
 	const [draft, setDraft] = useState(value);
 	const [editing, setEditing] = useState(false);
 	return (

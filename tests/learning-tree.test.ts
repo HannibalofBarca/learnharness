@@ -1,5 +1,4 @@
-/** The learning tree's pure core (src/server/claude/learning-tree.ts):
- *  one node per topic, several parents, cycles refused, outline, removal. */
+/** The learning tree's pure core (src/server/claude/learning-tree.ts): one node per topic, several parents, cycles refused, outline, removal. */
 
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -69,7 +68,7 @@ describe("learning tree", () => {
 });
 
 describe("learning tree canvas", async () => {
-	const { shownStatus, visibleTree } = await import("../components/learning-tree.tsx");
+	const { shownStatuses, visibleTree } = await import("../components/learning-tree.tsx");
 	it("collapsing a branch hides what is only reachable through it; a shared topic stays via its other parent", () => {
 		const nodes = build();
 		const { shown, edges } = visibleTree(nodes, new Set(["rl"]));
@@ -80,10 +79,10 @@ describe("learning tree canvas", async () => {
 	it("a group shows its topics' progress", () => {
 		const out = upsertNodes(build(), [{ title: "MDP", status: "done" }]);
 		assert.ok("nodes" in out);
-		assert.equal(shownStatus(out.nodes, "cs285"), "learning");
+		assert.equal(shownStatuses(out.nodes).get("cs285"), "learning");
 		const all = upsertNodes(out.nodes, [{ title: "Bellman equations", status: "done" }]);
 		assert.ok("nodes" in all);
-		assert.equal(shownStatus(all.nodes, "academia"), "done");
-		assert.equal(shownStatus(build(), "rl"), "todo");
+		assert.equal(shownStatuses(all.nodes).get("academia"), "done");
+		assert.equal(shownStatuses(build()).get("rl"), "todo");
 	});
 });

@@ -1,15 +1,5 @@
 "use client";
-/**
- * The reading-font picker (appearance wave, 2026-09-26): FontMenuList —
- * installed families, the always-offerable DEFAULT row and a custom-family
- * escape input, over a fuzzy search.
- *
- * Keyboard machine (owner polish, 2026-09-17): focus STAYS in the search
- * field — ↑/↓ walk the filtered results (clamped, no wrap), Enter picks
- * the walked row (or the first result when nothing is walked).
- * stopPropagation keeps these keys out of every other listener while the
- * menu is open.
- */
+/** The reading-font picker: FontMenuList — installed families, the always-offerable DEFAULT row and a custom-family escape input, over a fuzzy search. */
 
 import { useEffect, useRef, useState } from "react";
 import { fuzzyScore } from "@/src/core";
@@ -21,44 +11,33 @@ import { fuzzyScore } from "@/src/core";
  *  with the default first and a searched list drops it honestly — Enter
  *  can never pick a row that isn't on screen. Pure — exported for
  *  tests. */
-export function fontMenuResults(query: string, families: string[]): Array<string | null> {
+function fontMenuResults(query: string, families: string[]): Array<string | null> {
 	const scored = families
 		.map((f) => ({ f, s: fuzzyScore(query, f) }))
 		.filter((r) => r.s !== null)
 		.sort((a, b) => b.s! - a.s! || a.f.localeCompare(b.f))
 		.map((r) => r.f);
-	// The default row's searchable identity: the factory family + the
-	// word "default" (the suffix it renders with).
+	// The default row's searchable identity: the factory family + the word "default" (the suffix it renders with).
 	const defaultScore = fuzzyScore(query, "Source Sans 3", "default");
 	if (query.trim() === "" || defaultScore !== null) return [null, ...scored];
 	return scored;
 }
 
-/** The custom-family action row's decision (pure, 2026-09-26): a typed
- *  query that matches NO family becomes the "Use '<query>'" custom pick —
- *  a matching family is the better pick, so the action row only exists
- *  when there is nothing else to pick. Exported for tests. */
-export function customFamilyFor(query: string, families: string[]): string | null {
+/** The custom-family action row's decision: a typed query that matches NO family becomes the "Use '<query>'" custom pick */
+function customFamilyFor(query: string, families: string[]): string | null {
 	const trimmed = query.trim();
 	if (trimmed === "") return null;
 	return fontMenuResults(query, families).length === 0 ? trimmed : null;
 }
 
-/** The reading-font dropdown body — ONE search field (owner ask
- *  2026-09-26: "why two?"): the fuzzy machine filters the families, and
- *  when nothing matches, a "Use '<query>'" action row commits the typed
- *  text as a custom family — the old separate custom input is gone, the
- *  search field absorbed its job. `families === undefined` is the
- *  enumerating state; the curated fallback arrives as plain families with
- *  a footer that says so honestly. */
+/** The reading-font dropdown body — ONE search field: the fuzzy machine filters the families, and when nothing matches */
 export function FontMenuList({
 	families,
 	effectiveFamily,
 	onPick,
 	footer,
 }: {
-	/** Enumerated font families (already deduped/sorted by the caller);
-	 *  undefined while the enumeration runs. */
+	/** Enumerated font families (already deduped/sorted by the caller); undefined while the enumeration runs. */
 	families: string[] | undefined;
 	/** The stored override (null = the factory Source Sans 3). */
 	effectiveFamily: string | null;
@@ -82,8 +61,7 @@ export function FontMenuList({
 	}, [menuIdx]);
 
 	const results = fontMenuResults(query, families ?? []);
-	// The custom-family action row: only when a typed query matches
-	// nothing (a matching family is the better pick). Enter picks it.
+	// The custom-family action row: only when a typed query matches nothing (a matching family is the better pick).
 	const customFamily = customFamilyFor(query, families ?? []);
 	const walkable: Array<string | null> = customFamily !== null ? ["__custom__"] : results;
 

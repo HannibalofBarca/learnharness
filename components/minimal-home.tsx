@@ -1,23 +1,6 @@
 "use client";
 
-/**
- * THE MINIMAL HOME (owner, 2026-10-06 — the no-graph home, take two):
- * when GRAPH RENDERING is off (graph.rendering in settings), the home's
- * main view is this — deliberately quiet, deliberately minimal. The
- * eventual plan is the DATA VIEW as home; until that is designed and
- * built, this is the placeholder that asks for nothing new: the SAME
- * composer blob home already floats (teach/practice switcher + pick
- * pill — untouched), the graph chrome's survivors in the SAME places
- * the graph view keeps them (top-right column: actions row, cost pill
- * BELOW it), and a centered, quiet summary of the knowledge base in
- * numbers. No recent sessions (the sidebar owns that), no canvas, no
- * list scrolling under the composer.
- *
- * The CHAIN TABLE stays behind its button exactly as on the graph view:
- * the standard overlay, unchanged — this component owns only the button.
- * The practice pick flow mirrors GraphView's contract verbatim (home
- * lifts the pick set; the chip opens the overlay in select mode).
- */
+/** THE MINIMAL HOME: when GRAPH RENDERING is off (graph.rendering in settings), the home's main view is this — deliberately quiet, deliberately minimal. */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ListTreeIcon, UploadIcon } from "lucide-react";
 import { ChainTableOverlay } from "@/components/chain-table.tsx";
@@ -25,10 +8,8 @@ import { NotesImportErrors, useNotesImport } from "@/components/notes-import.tsx
 import { Hint } from "@/components/ui/hint";
 import type { ChatSummary, GraphSnapshot } from "@/src/core";
 
-/** The quiet centered summary — a pure body (props in, markup out) so
- * the render suite can pin it statically. Very quiet by owner ruling:
- * muted small text, no cards, no chrome. */
-export function KnowledgeSummary({
+/** The quiet centered summary — a pure body (props in, markup out) so the render suite can pin it statically. */
+function KnowledgeSummary({
 	propositions,
 	chains,
 	teachSessions,
@@ -45,10 +26,7 @@ export function KnowledgeSummary({
 		propositions === 0 && chains === 0 && teachSessions === 0 && practiceSessions === 0 && importedNotes === 0;
 	return (
 		<div data-testid="knowledge-summary" className="flex flex-col items-center text-center">
-			{/* Own-line law (owner, 2026-10-06): every count sits on its own
-			    row — no dot separators; the two blocks (graph, sessions)
-			    part with one empty line; the notes COUNT (never the file
-			    list) rides after the same parting. */}
+			{/* Own-line law: every count sits on its own row — no dot separators; the two blocks (graph, sessions) part with one empty line… */}
 			<div className="flex flex-col gap-1">
 				<p className="font-ui text-sm text-muted-foreground">
 					{propositions} {propositions === 1 ? "proposition" : "propositions"}
@@ -85,8 +63,7 @@ export function MinimalHome({
 	onPracticeSelectionChange,
 	onChainSelectClose,
 }: {
-	/** The lifted pick set drives the overlay's select mode (Done instead
-	 * of the delete fence); the chip in home's composer reflects it. */
+	/** The lifted pick set drives the overlay's select mode (Done instead of the delete fence); the chip in home's composer reflects it. */
 	chainSelectOpen?: boolean;
 	practiceSelection?: ReadonlySet<string>;
 	onPracticeSelectionChange?: (nodes: { id: string; name: string; statement: string }[]) => void;
@@ -111,8 +88,7 @@ export function MinimalHome({
 		readState();
 	}, [readState]);
 
-	// The practice chip opens the table in select mode (GraphView's law):
-	// the pick intent raises the overlay; Done/close reports back down.
+	// The practice chip opens the table in select mode (GraphView's law): the pick intent raises the overlay; Done/close reports back down.
 	useEffect(() => {
 		if (chainSelectOpen) setChainsOpen(true);
 	}, [chainSelectOpen]);
@@ -149,15 +125,7 @@ export function MinimalHome({
 				/>
 			</div>
 
-			{/* The chrome survivors in the graph view's own places (owner,
-			    2026-10-06): the top-right column — actions row (Chains +
-			    Import, the same 36px band pills), the cost pill BELOW it.
-			    The column carries lh-no-drag EXACTLY like the graph
-			    chrome's (the DOM-order mask law): without it the drag band
-			    swallows the clicks in Electron — the buttons dragged the
-			    window instead. Node search and the render-settings gear are
-			    canvas things and stay gone; Import ALWAYS renders (the
-			    entry law). */}
+			{/* The chrome survivors in the graph view's own places: the top-right column — actions row (Chains + Import, the same 36px band pills)… */}
 			<div className="lh-no-drag lh-wco-floating absolute right-2 top-2 z-10 flex max-w-[calc(100%-5.5rem)] flex-col items-end gap-2">
 				<div className="flex min-w-0 items-start gap-2">
 					<div className="graph-chrome-fade-in shrink-0 rounded-xl border bg-card/85 px-1 py-[3px] shadow-lg backdrop-blur">
@@ -191,11 +159,7 @@ export function MinimalHome({
 				<NotesImportErrors errors={notesImport.errors} />
 			</div>
 
-			{/* The chain table — the STANDARD overlay, unchanged, behind its
-			    button. LAST CHILD OF THE ROOT, DELIBERATELY (the graph view's
-			    DOM-order drag law): app-region subtraction resolves by DOM
-			    order, so a full-bleed surface covering the drag band must
-			    paint after everything it covers. */}
+			{/* The chain table — the STANDARD overlay, unchanged, behind its button. */}
 			<ChainTableOverlay
 				open={chainsOpen && (snapshot?.propositions.length ?? 0) > 0}
 				nodes={snapshot?.propositions ?? []}
@@ -209,8 +173,7 @@ export function MinimalHome({
 				selectMode={chainSelectOpen}
 				controlledSelection={practiceSelection}
 				onSelectionChange={(ids) => {
-					// Resolve ids → nodes against the live snapshot; the
-					// caller holds the pick set (count + seed).
+					// Resolve ids → nodes against the live snapshot; the caller holds the pick set (count + seed).
 					const props = snapshot?.propositions ?? [];
 					const picked: { id: string; name: string; statement: string }[] = [];
 					for (const id of ids) {

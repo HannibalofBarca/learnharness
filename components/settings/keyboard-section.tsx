@@ -1,20 +1,5 @@
 "use client";
-/**
- * The Keyboard section (thin settings wave): view / rebind / reset over
- * core/keyboard.ts's registry. The overrides persist in localStorage
- * (lh:keymap, overrides-only, merged over DEFAULT_BINDINGS), so rebinding
- * is INSTANT — the dispatcher reads the map per keydown, no reload.
- *
- * Rebind flow: click Rebind → the row listens for the next keydown
- * (capture phase, preventDefault — nothing types anywhere), eventBinding
- * normalizes it, saveOverrides persists. Escape cancels. displayOnly
- * actions (a surface owns those keys — the question dock's row machine)
- * are listed for reading but never rebindable.
- *
- * Thin: no conflict detection — if a new binding collides with another
- * action's, the first match in registry order wins; the cheat sheet shows
- * both. Detection belongs to the designed wave.
- */
+/** The Keyboard section: view / rebind / reset over core/keyboard.ts's registry. */
 
 import { useEffect, useState } from "react";
 import {
@@ -36,7 +21,7 @@ const SCOPES: { scope: KeyScope; label: string }[] = [
 
 /** The overrides map after ONE change (pure — exported for tests):
  *  binding null = reset the action to its default (key removed). */
-export function nextOverrides(
+function nextOverrides(
 	current: Partial<Record<KeyAction, string>>,
 	id: KeyAction,
 	binding: string | null,
@@ -67,9 +52,7 @@ export function KeyboardSection() {
 				setRebinding(null);
 				return;
 			}
-			// Modifier keydowns arrive one by one (⌘ down, then ⇧, then the
-			// key) — each is a keydown this capture listener sees. They are
-			// not bindings; keep listening for the real key.
+			// Modifier keydowns arrive one by one (⌘ down, then ⇧, then the key) — each is a keydown this capture listener sees.
 			if (e.key === "Control" || e.key === "Meta" || e.key === "Alt" || e.key === "Shift") return;
 			const binding = eventBinding(e);
 			if (!binding) return;

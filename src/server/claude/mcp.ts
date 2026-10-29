@@ -1,12 +1,4 @@
-/**
- * The MCP endpoint Claude Code connects to (POST /api/mcp?chat=<id>):
- * stateless streamable HTTP — a fresh server + transport per request, the
- * chat bound by the URL, the caller authenticated by the bridge token.
- *
- * A call that waits for the learner holds its response open; progress
- * notifications every PROGRESS_MS keep Claude Code's idle timeout from
- * firing while they think.
- */
+/** The MCP endpoint Claude Code connects to (POST /api/mcp?chat=<id>): stateless streamable HTTP — a fresh server + transport per request */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
@@ -19,8 +11,7 @@ import { callPlannerTool, PLANNER_ID, PLANNER_TOOLS } from "./planner.ts";
 const PROGRESS_MS = 30_000;
 
 function jsonSchema(schema: unknown): Record<string, unknown> {
-	// TypeBox schemas are JSON Schema plus symbol-keyed metadata; a JSON
-	// round trip leaves the plain schema.
+	// TypeBox schemas are JSON Schema plus symbol-keyed metadata; a JSON round trip leaves the plain schema.
 	return JSON.parse(JSON.stringify(schema)) as Record<string, unknown>;
 }
 

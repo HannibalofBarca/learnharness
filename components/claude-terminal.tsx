@@ -1,12 +1,6 @@
 "use client";
 
-/**
- * The embedded tutor terminal (docs/claude-code-bridge.md): the session's
- * Claude Code, running in a pty owned by the desktop shell. The learner
- * reads and answers in the session above; this pane shows Claude working
- * and accepts direct input. Desktop only — the browser build has no pty and
- * shows how to connect instead.
- */
+/** The embedded tutor terminal (docs/claude-code-bridge.md): the session's Claude Code, running in a pty owned by the desktop shell. */
 
 import { useEffect, useRef, useState } from "react";
 
@@ -62,8 +56,7 @@ export function ClaudeTerminal({ chatId }: { chatId: string }) {
 		setError(null);
 		let disposed = false;
 		let cleanup: (() => void) | undefined;
-		// xterm is browser-only: loaded here, in the window, never at module
-		// load (the chat view also renders in tests and on the server).
+		// xterm is browser-only: loaded here, in the window, never at module load (the chat view also renders in tests and on the server).
 		void Promise.all([import("@xterm/xterm"), import("@xterm/addon-fit")]).then(([{ Terminal }, { FitAddon }]) => {
 			if (disposed) return;
 			const xterm = new Terminal({

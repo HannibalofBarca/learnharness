@@ -1,17 +1,4 @@
-/**
- * THE SESSION MODEL (Wave D): the chat session's state machine, extracted
- * PURE — no React, one injectable fetch — so the attach/replay/settle/
- * error/abort paths are testable in the repo's node:test world. The React
- * hook (components/session.ts) is a thin adapter: it re-renders on change
- * and projects the view (core/view.ts).
- *
- * ONE VIEW PROTOCOL: every turn is a server-side background process (owner
- * ruling 2026-09-25); this model is a view. Sends POST one explicit input
- * event ({chatId, input}); the response and the reattach stream
- * (GET /api/chats/[id]/stream) are the SAME verbatim AgentEvent SSE,
- * applied by the same function. Status vocabulary (pre-Wave-D parity):
- * ready | submitted | streaming | error.
- */
+/** THE SESSION MODEL: the chat session's state machine, extracted PURE — no React, one injectable fetch */
 
 import type { AgentEvent } from "@/src/core";
 import type { ToolResultMessage } from "@/src/core";
@@ -38,11 +25,11 @@ import {
 export type SessionStatus = "ready" | "submitted" | "streaming" | "error";
 
 /** How often to poll turnInFlight while a racing turn runs (409 retry). */
-export const TURN_POLL_MS = 500;
+const TURN_POLL_MS = 500;
 /** Give up waiting (a wake turn can run long) and surface the 409. */
-export const TURN_WAIT_MAX_MS = 30_000;
+const TURN_WAIT_MAX_MS = 30_000;
 
-export interface SessionModelDeps {
+interface SessionModelDeps {
 	/** Injectable fetch (tests); defaults to the global. */
 	fetch?: typeof globalThis.fetch;
 	/** Injectable retry timing (tests). */
@@ -50,8 +37,7 @@ export interface SessionModelDeps {
 	waitMaxMs?: number;
 }
 
-/** A local optimistic id (never a server stamp — absorption and the
- *  settle swap both key on this prefix). */
+/** A local optimistic id (never a server stamp — absorption and the settle swap both key on this prefix). */
 let localSeq = 0;
 function localId(): string {
 	return `c_${Date.now().toString(36)}_${(localSeq++).toString(36)}`;
@@ -115,9 +101,8 @@ async function* sseEvents(reader: ReadableStreamDefaultReader<Uint8Array>): Asyn
 	}
 }
 
-/** The dangling question call's tool name (the optimistic answer result's
- *  toolName — the server stamps the same from its own record scan). */
-export function pendingCallTool(messages: readonly LhMessage[], toolCallId: string): string | null {
+/** The dangling question call's tool name (the optimistic answer result's toolName — the server stamps the same from its own record scan). */
+function pendingCallTool(messages: readonly LhMessage[], toolCallId: string): string | null {
 	for (const m of messages) {
 		if ((m as { role?: string }).role !== "assistant") continue;
 		const content = (m as { content?: unknown }).content;
@@ -129,13 +114,8 @@ export function pendingCallTool(messages: readonly LhMessage[], toolCallId: stri
 	return null;
 }
 
-/**
- * Has the record ABSORBED this optimistic tail entry? The write-ahead
- * persists content-identical copies with server-stamped ids — match on the
- * content, not the (local) id; only `c_`-prefixed local entries are ever
- * absorbed (live turn content is never dropped).
- */
-export function absorbed(m: LhMessage, record: readonly LhMessage[]): boolean {
+/** Has the record ABSORBED this optimistic tail entry? */
+function absorbed(m: LhMessage, record: readonly LhMessage[]): boolean {
 	if (typeof m.id !== "string" || !m.id.startsWith("c_")) return false;
 	const role = (m as { role?: string }).role;
 	if (role === "user") {
@@ -153,12 +133,7 @@ export function absorbed(m: LhMessage, record: readonly LhMessage[]): boolean {
 		);
 	}
 	if (role === "custom") {
-		// Markers (the thinking submission, 2026-10-05 — the doubled-card
-		// bug: the optimistic practice-thinking card was never absorbed, so
-		// the adoption window rendered it beside the write-ahead's server
-		// copy for the whole turn). TOTAL over roles by identity key — a
-		// marker is itself when its customType AND structured details match;
-		// types that never appear optimistically simply never reach here.
+		// Markers.
 		const marker = m as LhMarkerMessage;
 		return record.some(
 			(r) =>
@@ -170,8 +145,7 @@ export function absorbed(m: LhMessage, record: readonly LhMessage[]): boolean {
 	return false;
 }
 
-/** Structural deep-equal for marker details (JSON-stable payloads — the
- *  constructors mint plain data). */
+/** Structural deep-equal for marker details (JSON-stable payloads — the constructors mint plain data). */
 function sameDetails(a: unknown, b: unknown): boolean {
 	return JSON.stringify(a) === JSON.stringify(b);
 }
@@ -183,10 +157,7 @@ export interface SessionState {
 	contextTokens: number | null;
 	status: SessionStatus;
 	error: { message: string } | null;
-	/** Steers sent but not yet drained (composer steering, 2026-10-03):
-	 *  the queued indicator's truth. An entry dies when its id lands in
-	 *  the messages (the drain's verbatim events upsert the real card) —
-	 *  visibleQueuedSteers is the pure fold. */
+	/** Steers sent but not yet drained: the queued indicator's truth. */
 	steerQueue: SteerQueueItem[];
 }
 
@@ -196,10 +167,7 @@ export interface SteerQueueItem {
 	text: string;
 }
 
-/** The indicator's fold (pure): a queued steer stays visible until its id
- *  lands in the message list — from the live stream's upsert, the settle
- *  sync, or a reload. A steer parked server-side (stranded behind a
- *  question) keeps its line: honest "waiting" until the next run drains it. */
+/** The indicator's fold (pure): a queued steer stays visible until its id lands in the message list — from the live stream's upsert, the settle sync */
 export function visibleQueuedSteers(
 	queue: readonly SteerQueueItem[],
 	messages: readonly LhMessage[],
@@ -208,15 +176,14 @@ export function visibleQueuedSteers(
 	return queue.filter((s) => !ids.has(s.id));
 }
 
-export interface SessionModelOptions extends SessionModelDeps {
+interface SessionModelOptions extends SessionModelDeps {
 	chatId: string;
 	initialMessages: LhMessage[];
 	/** Retained, memory-only server failure when reopening a session. */
 	initialError?: string;
 	/** Fires on every state change (the hook re-renders). */
 	onChange?: () => void;
-	/** The reattach settled terminal (turn-settled): no turn running, the
-	 *  record is current — the caller refetches it. */
+	/** The reattach settled terminal (turn-settled): no turn running, the record is current — the caller refetches it. */
 	onReattachSettled?: () => void;
 }
 
@@ -232,9 +199,7 @@ export class SessionModel {
 	/** The hook's re-render trigger (set by the adapter). */
 	onChange?: () => void;
 
-	// THE STATE: the record (server canon) + the live tail (this client's
-	// optimistic appends and the streaming turn's messages). The tail dies
-	// at every full sync; the write-ahead absorbs the optimistic entries.
+	// THE STATE: the record (server canon) + the live tail (this client's optimistic appends and the streaming turn's messages).
 	private base: LhMessage[];
 	private tail: LhMessage[] = [];
 	private questionDrafts = new Map<string, QuestionDraft>();
@@ -253,8 +218,7 @@ export class SessionModel {
 	private automaticContinuationBlocked = false;
 	/** A completed failure from THIS consume, not the previous attempt's record. */
 	private liveFailureId: string | null = null;
-	// The single live consume (POST response or reattach stream): a newer
-	// consume cancels the older — one reader at a time.
+	// The single live consume (POST response or reattach stream): a newer consume cancels the older — one reader at a time.
 	private consumeAbort: AbortController | null = null;
 	/** Synchronous ready check for the gate (send/read mount logic). */
 	readyRef = true;
@@ -264,10 +228,7 @@ export class SessionModel {
 		this.base = opts.initialMessages;
 		this.errorValue = opts.initialError === undefined ? null : { message: opts.initialError };
 		this.automaticContinuationBlocked = opts.initialError !== undefined;
-		// BOUND: the browser's native fetch is a Window method — storing it
-		// unbound makes every call throw "Illegal invocation" in the browser
-		// (Node's undici doesn't care, so the tests never saw it). Always go
-		// through a receiver-preserving wrapper.
+		// BOUND: the browser's native fetch is a Window method
 		this.fetch = opts.fetch ?? ((...args) => globalThis.fetch(...args));
 		this.pollMs = opts.pollMs ?? TURN_POLL_MS;
 		this.waitMaxMs = opts.waitMaxMs ?? TURN_WAIT_MAX_MS;
@@ -287,9 +248,7 @@ export class SessionModel {
 				: undefined;
 		const messages = [...this.base, ...this.tail];
 		const latest = messages.at(-1);
-		// One rule for live and restored failures: only the final completed
-		// assistant can own the banner. While trying again, hide the old
-		// failure from the first Thinking frame, but show a new failure at end.
+		// One rule for live and restored failures: only the final completed assistant can own the banner.
 		const providerError =
 			latest?.role === "assistant" && latest.stopReason === "error" &&
 			!this.incompleteUsageIds.has(latest.id) && (!live || latest.id === this.liveFailureId)
@@ -328,9 +287,7 @@ export class SessionModel {
 		this.onChange?.();
 	}
 
-	/** The 409 identity-retry fetch (the Wave B contract): the event was
-	 *  never persisted (write-ahead happens only on acceptance), so the
-	 *  retry waits out the running turn and re-POSTs the SAME body. */
+	/** The 409 identity-retry fetch: the event was never persisted (write-ahead happens only on acceptance) */
 	async postInputEvent(input: ChatInput, signal?: AbortSignal): Promise<Response> {
 		const body = JSON.stringify({ chatId: this.chatId, input });
 		const init: RequestInit = {
@@ -353,27 +310,17 @@ export class SessionModel {
 		return response;
 	}
 
-	/**
-	 * ONE event application for both the POST stream and the reattach
-	 * replay (pi's events carry the FULL partial message — a view REPLACES,
-	 * never assembles deltas). Returns whether the event did VIEW WORK:
-	 * the consume flips submitted→streaming on the first ACTED event, not
-	 * the first wire byte — agent_start/turn_start release nothing, so
-	 * the Thinking… placeholder (gated on submitted) covers the whole
-	 * provider-connect gap (owner, optimistic round 3, 2026-10-02).
-	 */
+	/** ONE event application for both the POST stream and the reattach replay (pi's events carry the FULL partial message — a view REPLACES */
 	applyWireEvent(event: Record<string, unknown>): boolean {
 		if (event.type === "error") {
-			// Loop-level failure (agent.continue threw outside the stream) —
-			// raw text (owner ruling, Wave D): the banner shows exactly this.
+			// Loop-level failure (agent.continue threw outside the stream) — raw text: the banner shows exactly this.
 			this.setError(String(event.errorText ?? "An error occurred."));
 			return false;
 		}
 		const agent = event as unknown as AgentEvent;
 		switch (agent.type) {
 			case "agent_start":
-				// Positive evidence of a new/replayed server-owned turn. Any
-				// later failure in that replay blocks continuation again.
+				// Positive evidence of a new/replayed server-owned turn.
 				this.automaticContinuationBlocked = false;
 				if (this.errorValue !== null) this.setError(null);
 				return false;
@@ -385,12 +332,7 @@ export class SessionModel {
 					id?: string;
 				};
 				if ((message as { role?: string }).role !== "assistant") {
-					// Wave C: markers injected mid-run (pi's follow-up delivery)
-					// arrive as custom-role message_start/message_end events -
-					// UPSERT by id (markers always carry steer_<id> ids; id-less
-					// non-assistant events never occur - injected messages emit
-					// start+end only, no streaming partials). Without this the
-					// live stream dropped the marker until the settle sync.
+					// Wave C: markers injected mid-run arrive as custom-role message_start/message_end events - UPSERT by id (markers always carry steer_<id> ids
 					const mid = message.id;
 					if (mid === undefined) return false;
 					this.mutate(() => {
@@ -400,26 +342,14 @@ export class SessionModel {
 					});
 					return true;
 				}
-				// pi streams AssistantMessages with NO id — the id exists only
-				// once the server's persistTurn stamps the record (the live
-				// streaming bug, 2026-09-26: minting a fresh id per event made
-				// every message_update APPEND a full copy — a divider + thinking
-				// block per chunk, cleaned up only by the settle sync). The
-				// in-flight message is tracked by SLOT instead: message_start
-				// mints and remembers the id; updates and the end REPLACE that
-				// same tail entry. Exactly one assistant message streams at a
-				// time (pi's strict start → updates → end ordering per step; the
-				// reattach replay replays the same sequence), so the slot is
-				// unambiguous. An explicit message.id (if one ever appears on
-				// the wire) still wins.
+				// pi streams AssistantMessages with NO id — the id exists only once the server's persistTurn stamps the record.
 				const id = message.id ?? this.streamingMessageId ?? localId();
 				const withId = { ...message, id } as LhMessage;
 				if (agent.type === "message_end") {
 					this.incompleteUsageIds.delete(id);
 					if (message.role === "assistant" && message.stopReason === "error") {
 						this.liveFailureId = id;
-						// A newer provider failure replaces an earlier connection/loop
-						// error, just as the live message_end did before restoration.
+						// A newer provider failure replaces an earlier connection/loop error, just as the live message_end did before restoration.
 						this.errorValue = null;
 					}
 				} else this.incompleteUsageIds.add(id);
@@ -441,8 +371,7 @@ export class SessionModel {
 				return true; // a message event is view work, even empty content
 			}
 			case "tool_execution_end": {
-				// The execution layer: clean question placeholders are IGNORED
-				// downstream (view.ts fork 2); errors keep their validation text.
+				// The execution layer: clean question placeholders are IGNORED downstream (view.ts fork 2); errors keep their validation text.
 				const result = agent.result as
 					| { content?: Array<{ type?: string; text?: string }>; details?: unknown }
 					| null;
@@ -457,8 +386,7 @@ export class SessionModel {
 				return true; // the execution layer updated the tool part's card
 			}
 			case "turn_end": {
-				// The results batch: append as native messages (client-stamped
-				// ids — the settle sync lands the server canon).
+				// The results batch: append as native messages (client-stamped ids — the settle sync lands the server canon).
 				this.mutate(() => {
 					this.tail = [
 						...this.tail,
@@ -474,8 +402,7 @@ export class SessionModel {
 		}
 	}
 
-	/** Consume one SSE body to its [DONE] terminal. The turn-settled
-	 *  terminal (stream-route only) fires the settle hook and ends. */
+	/** Consume one SSE body to its [DONE] terminal. */
 	async consumeStream(res: Response, controller = this.consumeAbort, allowRecovery = true): Promise<void> {
 		if (!res.body) throw new Error("The turn stream body is empty.");
 		const reader = res.body.getReader();
@@ -494,8 +421,7 @@ export class SessionModel {
 				if (next.done) { sawDone = next.value; break; }
 				const event = next.value;
 				if (event.type === "turn-settled") {
-					// The raced-settle terminal: no turn to attach to — the
-					// record is current; the settle hook refetches.
+					// The raced-settle terminal: no turn to attach to — the record is current; the settle hook refetches.
 					sawDone = true;
 					this.onReattachSettled?.();
 					return;
@@ -509,8 +435,7 @@ export class SessionModel {
 		} finally {
 			await reader.cancel().catch(() => {});
 			reader.releaseLock();
-			// A cancelled consume may finish after its replacement has entered
-			// Thinking. Only the current owner can settle shared state.
+			// A cancelled consume may finish after its replacement has entered Thinking.
 			if (this.consumeAbort === controller) {
 				this.streamingIds = new Set();
 				this.executions = new Map();
@@ -519,8 +444,7 @@ export class SessionModel {
 		}
 		if (this.consumeAbort !== controller || sawDone) return;
 		if (!allowRecovery) throw new StreamReadError(new Error(STREAM_DROPPED));
-		// One read-only recovery: refresh the canonical base, then replay the
-		// SAME server-owned turn. Never resend the learner's input.
+		// One read-only recovery: refresh the canonical base, then replay the SAME server-owned turn.
 		await this.resumeStream(true, false);
 	}
 
@@ -535,39 +459,12 @@ export class SessionModel {
 		}
 	}
 
-	/**
-	 * Reattach (the wake/handoff/mount path): a server-side turn with no
-	 * live view of ours. ATTACH-FIRST (owner, reattach round 2026-10-02):
-	 * a fresh-mount reattach passes refetchRecordFirst=false — the page
-	 * render just read the record, so the blocking record round-trip only
-	 * added handshake latency before the instant replay; the running
-	 * turn's partial lives solely in the server event log, and the replay
-	 * rebuilds it regardless of the refetch. Mid-session callers (the
-	 * handoff watch) keep the default: their base may trail the record,
-	 * and the refetch absorbs it (write-ahead adoption) before the replay
-	 * lands on top. The stream then replays the turn from its first event
-	 * through the SAME consume path.
-	 */
+	/** Reattach (the wake/handoff/mount path): a server-side turn with no live view of ours. */
 	async resumeStream(refetchRecordFirst = true, allowRecovery = true): Promise<void> {
 		this.consumeAbort?.abort();
 		const controller = new AbortController();
 		this.consumeAbort = controller;
-		// REPLAY ONTO A CLEAN SLATE (owner, optimistic round 3, 2026-10-02):
-		// the reattach stream replays the turn from its FIRST event — an
-		// aborted earlier attempt (React StrictMode's simulated remount)
-		// must not leave partials the replay would DOUBLE onto. The old
-		// record refetch provided this reset accidentally; attach-first
-		// made it explicit.
-		//
-		// THE FLICKER FIX (owner, 2026-10-10 — connection-diet B follow-up):
-		// on the REFETCH path the clear must NOT precede the fetch — send()
-		// just landed the optimistic answer/note cards in the tail, and any
-		// refetch latency (dev-compile stalls measured at 1.7s) re-showed
-		// the answered-away question for the whole window: card vanished,
-		// dock returned, both snapped back only when the record landed.
-		// The refetch block below swaps base+tail ATOMICALLY when the record
-		// arrives (and clears on failure — the clean-slate guard holds on
-		// every path that actually replays onto a stale tail).
+		// REPLAY ONTO A CLEAN SLATE: the reattach stream replays the turn from its FIRST event
 		if (!refetchRecordFirst) {
 			this.mutate(() => {
 				this.incompleteUsageIds.clear();
@@ -587,8 +484,7 @@ export class SessionModel {
 						if (!allowRecovery && !controller.signal.aborted) throw new StreamReadError(err);
 						throw err;
 					}
-					// Parse outside the transport catch: malformed JSON is a
-					// contract bug, not a connection-drop diagnostic.
+					// Parse outside the transport catch: malformed JSON is a contract bug, not a connection-drop diagnostic.
 					const record = JSON.parse(text) as { messages?: LhMessage[]; turnError?: string };
 					if (this.consumeAbort !== controller) return;
 					if (Array.isArray(record.messages)) {
@@ -604,8 +500,7 @@ export class SessionModel {
 						});
 					}
 				} else {
-					// The record did not land — restore the clean-slate guard
-					// before the replay (no atomic swap is coming).
+					// The record did not land — restore the clean-slate guard before the replay (no atomic swap is coming).
 					this.mutate(() => {
 						this.incompleteUsageIds.clear();
 						this.tail = [];
@@ -620,7 +515,6 @@ export class SessionModel {
 		} catch (err) {
 			if (this.consumeAbort !== controller || controller.signal.aborted) return; // intentionally cancelled
 			// A failed record read can leave the optimistic answer in the tail.
-			// Restore its Submit affordance; the next attempt reconciles first.
 			this.mutate(() => {
 				this.tail = this.tail.filter(m => !this.unconfirmedAnswers.has(m.id));
 				this.unconfirmedAnswers.clear();
@@ -630,12 +524,7 @@ export class SessionModel {
 		}
 	}
 
-	/**
-	 * SEND: one explicit input event. Optimistic appends first (the instant
-	 * answer/note UX — the server's write-ahead persists the canon), then
-	 * POST + consume. Ready-gated: one turn per client at a time (the
-	 * server's 409 + identity retry covers the wake-race window).
-	 */
+	/** SEND: one explicit input event. */
 	async send(input: ChatInput): Promise<void> {
 		const recovering = this.statusValue === "error";
 		if (!this.readyRef && !recovering) return;
@@ -651,8 +540,7 @@ export class SessionModel {
 				if (!res.ok) throw new Error((await res.text()) || "An error occurred.");
 				const record = await res.json() as { messages?: LhMessage[]; turnInFlight?: boolean; turnError?: string };
 				if (this.consumeAbort !== controller) return;
-				// No verified record/liveness: retain the draft and never guess
-				// whether a lost acknowledgement meant the input was accepted.
+				// No verified record/liveness: retain the draft and never guess whether a lost acknowledgement meant the input was accepted.
 				if (!Array.isArray(record.messages) || typeof record.turnInFlight !== "boolean") throw new Error("An error occurred.");
 				this.setMessages(record.messages, record.turnError);
 				if (record.turnInFlight) {
@@ -660,8 +548,7 @@ export class SessionModel {
 					return;
 				}
 				if (input.type === "answer" && (answeredCallIds(record.messages).has(input.toolCallId) || danglingQuestionOf(record.messages)?.toolCallId !== input.toolCallId)) {
-					// The call already resolved, or no longer owns the dock. Adopt
-					// truth, never POST that answer a second time.
+					// The call already resolved, or no longer owns the dock.
 					this.setStatus("ready");
 					return;
 				}
@@ -673,19 +560,14 @@ export class SessionModel {
 			}
 		}
 		if (input.type !== "continue") this.automaticContinuationBlocked = false;
-		// The optimistic appends — exactly the messages the server's
-		// write-ahead will persist (inputAppends), with LOCAL ids so
-		// adoption can tell them from the record's absorbed copies.
+		// The optimistic appends — exactly the messages the server's write-ahead will persist (inputAppends)
 		const optimistic: LhMessage[] = [];
 		if (input.type === "text") optimistic.push({ ...newUserMessage(input.text), id: localId() });
 		else if (input.type === "thinking") {
-			// The practice submissions (2026-10-04): the marker lands
-			// optimistically — the card renders from its details the
-			// moment the button fires.
+			// The practice submissions: the marker lands optimistically — the card renders from its details the moment the button fires.
 			optimistic.push({ ...newThinkingMessage(input.problemCallId, input.text), id: localId() });
 		} else if (input.type === "next") {
-			// The move-on signal (owner round 16): the NEXT PROBLEM line
-			// renders the instant the chip/Enter fires.
+			// The move-on signal: the NEXT PROBLEM line renders the instant the chip/Enter fires.
 			optimistic.push({ ...newNextMessage(), id: localId() });
 		} else if (input.type === "answer") {
 			const tool = pendingCallTool([...this.base, ...this.tail], input.toolCallId) ?? "quiz";
@@ -697,46 +579,23 @@ export class SessionModel {
 			this.tail = [...this.tail, ...optimistic];
 		});
 		try {
-			// SUBMITS ARE NOT ABORTABLE BY VIEW TEARDOWN (owner, 2026-10-10 —
-			// the dead-session-start postmortem): the POST must NOT ride
-			// consumeAbort. Diet A's abort-on-unmount (session.ts's stop())
-			// fires on React StrictMode's simulated remount in dev — it killed
-			// the ?prompt first send ~8ms in (POST aborted, never retried:
-			// the page's sentInitial guard had already flipped), leaving the
-			// session dead until a second message, which then persisted
-			// WITHOUT the first — the optimistic tail rode a record that never
-			// contained it. The POST is a ~100ms ack since Diet B; it cannot
-			// starve the connection pool, so it needs no teardown guard. The
-			// STREAM consume stays on the controller — releasing that held
-			// connection is Diet A's whole job.
+			// SUBMITS ARE NOT ABORTABLE BY VIEW TEARDOWN: the POST must NOT ride consumeAbort.
 			const res = await this.postInputEvent(input);
 			if (res.status === 409) {
 				throw new Error("A turn is already running — try again in a moment.");
 			}
 			if (!res.ok) {
-				// Refusal envelopes (503 BYOK/key gates) and 400s: the RAW body
-				// text rides the error message — the banner shows it, and the
-				// page's refusal flow JSON-parses the envelope out of it.
+				// Refusal envelopes (503 BYOK/key gates) and 400s: the RAW body text rides the error message — the banner shows it
 				throw new Error((await res.text()) || `The send failed (${res.status}).`);
 			}
-			// CONNECTION DIET B (owner, 2026-10-10 — parallel-session freeze
-			// postmortem): the POST acknowledges and closes; there is no stream
-			// on this response to consume. Attach through the SAME reattach wire
-			// a returning visitor uses (refetch-first: the record refetch absorbs
-			// the server's write-ahead copy of our optimistic messages, then the
-			// replay lands on top). One live view connection per page, always —
-			// the browser's 6-per-origin pool is the scarce resource.
+			// CONNECTION DIET B: the POST acknowledges and closes; there is no stream on this response to consume.
 			await res.text().catch(() => {}); // drain the tiny ack; release the socket
-			// A stop() or a newer send/consume won while the ack was in
-			// flight: the turn is live server-side either way — do not attach
-			// a stream from a view that is gone or superseded.
+			// A stop() or a newer send/consume won while the ack was in flight: the turn is live server-side either way
 			if (this.consumeAbort !== controller) return;
 			await this.resumeStream(true);
 		} catch (err) {
 			if (this.consumeAbort !== controller || controller.signal.aborted) return;
-			// Restore the question when acceptance failed or is unknown. Remove
-			// only THIS optimistic answer, never saved copies/newer live content.
-			// Other input kinds retain their existing optimistic presentation.
+			// Restore the question when acceptance failed or is unknown.
 			if (input.type === "answer") {
 				const ids = new Set(optimistic.map(m => m.id));
 				this.mutate(() => {
@@ -749,18 +608,7 @@ export class SessionModel {
 		}
 	}
 
-	/**
-	 *  STEER (composer steering, owner arc 2026-10-03): the learner's
-	 *  mid-turn message for the RUNNING turn. NOT a turn — no optimistic
-	 *  transcript card, no status flip: the message joins the queued
-	 *  indicator (the quiet line above the composer) and POSTs to the
-	 *  steer route, which hands it to the live agent's steering queue.
-	 *  When pi drains it at the next response boundary, the verbatim
-	 *  message events upsert the real card (the client-minted id is the
-	 *  key) and the indicator's fold drops the line. A 409 means the turn
-	 *  settled mid-send (the race): fall back to the plain text send —
-	 *  the entry is dropped and send() pushes its own optimistic card.
-	 */
+	/** STEER: the learner's mid-turn message for the RUNNING turn. */
 	async steer(text: string): Promise<void> {
 		const t = text.trim();
 		if (!t) return;
@@ -791,19 +639,13 @@ export class SessionModel {
 		}
 	}
 
-	/** The answer path (the dock): the answer IS the question call's tool
-	 *  result (fork 1), riding as its input event. */
+	/** The answer path (the dock): the answer IS the question call's tool result (fork 1), riding as its input event. */
 	submitAnswer(tool: string, toolCallId: string, output: QuestionAnswerData): Promise<void> {
 		void tool;
 		return this.send({ type: "answer", toolCallId, answer: output });
 	}
 
-	/** The dismissal path (owner design 2026-10-03, "A2"): the skipped
-	 * toolResult lands optimistically, then the SILENT route persists it
-	 * — no turn, no stream, nothing wakes. The session pauses at the
-	 * user's choice; the next plain send is the wake. On failure the
-	 * durable record wins: the error surfaces, the record-changed sync
-	 * (or any later refetch) replaces the optimistic append with truth. */
+	/** The dismissal path: the skipped toolResult lands optimistically, then the SILENT route persists it — no turn, no stream, nothing wakes. */
 	async dismissQuestion(toolCallId: string, answer: QuestionAnswerData): Promise<void> {
 		if (!this.readyRef) return;
 		const tool = pendingCallTool([...this.base, ...this.tail], toolCallId) ?? "quiz";
@@ -822,10 +664,7 @@ export class SessionModel {
 		}
 	}
 
-	/** The problem discard (practice sessions, owner 2026-10-04): the
-	 *  ask-style dismissal — the UI-only marker lands optimistically, then
-	 *  the SILENT route persists it (no turn, no wake). The composer
-	 *  returns; the conclude synthesis rides the user's next input. */
+	/** The problem discard: the ask-style dismissal — the UI-only marker lands optimistically, then the SILENT route persists it (no turn, no wake). */
 	async dismissProblem(problemCallId: string): Promise<void> {
 		if (!this.readyRef) return;
 		this.mutate(() => {
@@ -843,8 +682,7 @@ export class SessionModel {
 		}
 	}
 
-	/** Local detach: cancel the consume, keep the partial tail. The page's
-	 *  settle watch adopts the record when the server turn finishes. */
+	/** Local detach: cancel the consume, keep the partial tail. */
 	stop(): void {
 		this.consumeAbort?.abort();
 		this.consumeAbort = null;
@@ -886,13 +724,7 @@ export class SessionModel {
 		});
 	}
 
-	/**
-	 * Append-only adoption (the mid-turn steer/artifact ground rule): swap
-	 * in the record — every current base message must still be present
-	 * (the server appends only) — keeping the live tail, minus the
-	 * optimistic entries the record has absorbed (their server-stamped
-	 * copies just landed; without this the input bubble would double).
-	 */
+	/** Append-only adoption (the mid-turn steer/artifact ground rule): swap in the record */
 	adoptRecord(record: LhMessage[]): void {
 		const recordIds = new Set(record.map((m) => (m as { id?: string }).id));
 		const baseAbsorbed = this.base.some((m) => !recordIds.has((m as { id?: string }).id));
@@ -904,8 +736,7 @@ export class SessionModel {
 		});
 	}
 
-	/** Automatic mount/sync continuation is never permission to retry a
-	 * failed turn. Read current model truth, not a stale React closure. */
+	/** Automatic mount/sync continuation is never permission to retry a failed turn. */
 	async continueIfOwed(record: readonly LhMessage[]): Promise<void> {
 		if (this.statusValue === "ready" && !this.automaticContinuationBlocked && this.getState().error === null && needsContinuation(record)) {
 			await this.send({ type: "continue" });

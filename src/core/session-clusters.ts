@@ -34,30 +34,20 @@
  */
 import type { GraphChain, GraphNode } from "./contracts.ts";
 
-/** One birth-session cluster: the session id + the SORTED member node
- *  ids born in it. The shape is deliberately the { members } contract
- *  the layout consumer takes; `id` rides along for consumers that need
- *  the session identity (the snapshot's cluster id + label join). */
-export interface BirthSessionCluster {
+/** One birth-session cluster: the session id + the SORTED member node ids born in it. */
+interface BirthSessionCluster {
 	/** The birth session's id — a chatId or a notes source id ("src_…"). */
 	id: string;
 	/** Node ids born in this session, sorted. */
 	members: string[];
 }
 
-/** A node's birth session: its first surviving provenance point's chatId.
- *  null when the node carries no provenance at all (legacy data). */
+/** A node's birth session: its first surviving provenance point's chatId. */
 export function birthSessionOf(node: Pick<GraphNode, "provenance">): string | null {
 	return node.provenance[0]?.chatId ?? null;
 }
 
-/**
- * The birth-session partition over the given node LINES: dedupes by id
- * (first line defines — the getGraph rule), groups by birth session, and
- * returns the groups size-desc with members sorted (deterministic output:
- * ties break by session id ascending). A node with no provenance is left
- * unclustered — it belongs to no session the graph can name.
- */
+/** The birth-session partition over the given node LINES: dedupes by id (first line defines — the getGraph rule), groups by birth session */
 export function birthSessionPartition(nodes: readonly GraphNode[]): BirthSessionCluster[] {
 	const members = new Map<string, string[]>();
 	const seen = new Set<string>();
@@ -75,14 +65,8 @@ export function birthSessionPartition(nodes: readonly GraphNode[]): BirthSession
 		.sort((a, b) => b.members.length - a.members.length || (a.id < b.id ? -1 : 1));
 }
 
-/** The cluster key a derived implication node takes: MAJORITY among its
- *  PREMISES' birth sessions (owner, 2026-09-30 — premises, NOT the
- *  conclusion), ties to the chain's OWN birth (its provenance's first
- *  point, the asserting session — deterministic, and it coincides with
- *  the unanimous common case anyway). Imp nodes are always re-derived,
- *  never birthed, so their cluster must be a function of the derivation
- *  — this is that function. */
-export function impClusterKey(
+/** The cluster key a derived implication node takes: MAJORITY among its PREMISES' birth sessions */
+function impClusterKey(
 	chain: Pick<GraphChain, "premises" | "provenance">,
 	birthOf: (nodeId: string) => string | null,
 ): string | null {
@@ -98,19 +82,11 @@ export function impClusterKey(
 	const winners: string[] = [];
 	for (const [key, n] of counts) if (n === max) winners.push(key);
 	if (winners.length === 1) return winners[0]!;
-	// Tie → the chain's own birth; if even that is missing, the
-	// alphabetically-first winner (last-resort determinism).
+	// Tie → the chain's own birth; if even that is missing, the alphabetically-first winner (last-resort determinism).
 	return own ?? winners.sort()[0]!;
 }
 
-/** Attach derived imp nodes to communities IN PLACE (the shared seam for
- *  both consumers of cluster membership — the sim's centroid pull and
- *  the canvas's region rasterization both read members lists that went
- *  through here). Only MULTI-premise fully-live chains mint imp nodes
- *  (single-premise chains collapsed to direct arrows, rendering arc
- *  2026-09-30); dangling chains mint nothing. A chain whose home
- *  community is absent from the list stays unclustered — like its
- *  premises when the hull filter drops them. */
+/** Attach derived imp nodes to communities IN PLACE (the shared seam for both consumers of cluster membership */
 export function attachImpToCommunities(
 	communities: Array<{ id: string; members: string[] }>,
 	propositions: ReadonlyArray<Pick<GraphNode, "id" | "provenance">>,

@@ -1,29 +1,4 @@
-/**
- * smoke-server.mjs — boot the packaged standalone server and prove it serves.
- *
- * The payload gate that pays for itself (2026-10-08): `next build` success
- * and a completed electron-builder run say NOTHING about whether the
- * packaged server actually starts. On its first day this smoke caught two
- * real defects nothing else saw: (1) a trace-exclude regression that
- * stripped the pi engine packages to bare package.jsons — the server
- * answered 500 on every route with ERR_MODULE_NOT_FOUND; (2) before that,
- * the dev auth.json (BYOK keys) shipping inside the bundle. It runs
- * between build-server.mjs and electron-builder so a broken payload fails
- * in seconds, not after a full packaging pass.
- *
- * What it does: spawns .next/standalone/server.js exactly the way the
- * Electron shell does (electron/main.cjs) — with --electron it uses
- * Electron's bundled Node via ELECTRON_RUN_AS_NODE, otherwise host Node —
- * 127.0.0.1 on a kernel-assigned
- * free port, NODE_ENV=production, a THROWAWAY LH_DATA_DIR and an EMPTY
- * LH_AUTH_FILE under os.tmpdir() (no real keys or data ever touch it) —
- * polls GET / until 200, then probes the GET-only API surface (graph /
- * models / settings — no side effects). Any non-200, an early server
- * exit, or a 30s boot timeout fails the gate and prints the server's own
- * log tail for diagnosis. The child is ALWAYS killed before exit — a
- * leaked server holds its port against the next run (learned the hard
- * way, same day).
- */
+/** smoke-server.mjs — boot the packaged standalone server and prove it serves. */
 import { spawn } from "node:child_process";
 import { probeEnv, verifyDemoRuntime } from "./smoke-demo-runtime.mjs";
 import { createRequire } from "node:module";
@@ -78,7 +53,6 @@ function get(url) {
 
 async function main() {
 	// HTTP boot alone never imports the dynamically loaded demo engine.
-	// Fail before packaging if its standalone dependency graph is incomplete.
 	verifyDemoRuntime(STANDALONE, RUNTIME);
 	const port = await freePort();
 	const url = `http://127.0.0.1:${port}`;

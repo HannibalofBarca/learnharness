@@ -1,9 +1,4 @@
-/**
- * The bridge token: the bearer secret Claude Code presents on /api/mcp and
- * the hook route. Minted once per data directory (survives server restarts,
- * so a running terminal keeps working across a dev reload), mode 0600,
- * inside the data dir — which the tutor Claude is denied reading.
- */
+/** The bridge token: the bearer secret Claude Code presents on /api/mcp and the hook route. */
 
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import fs from "node:fs";

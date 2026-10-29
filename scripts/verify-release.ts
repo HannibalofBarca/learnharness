@@ -1,72 +1,4 @@
-/**
- * verify-release.ts — the final desktop-release gate (2026-10-13).
- *
- * Runs in the release workflow's LAST job, after all three packaging jobs
- * have uploaded to the tag's single draft GitHub Release, and fails the
- * workflow unless that draft holds exactly what end users and
- * electron-updater need. The workflow never publishes; this script only
- * reads (release list via the workflow's read-only token, update feeds
- * downloaded by the workflow's own gh steps).
- *
- * Every expected file name below was verified against the INSTALLED
- * builder (app-builder-lib 26.15.3) — these are the artifacts it actually
- * emits for this repo's electron-builder.yml, not pattern guesses:
- *
- *   mac (dmg + zip, arm64; no user artifactName there):
- *     dmg    LearnHarness-<v>-arm64.dmg       + .blockmap (createBlockmap)
- *     zip    LearnHarness-<v>-arm64-mac.zip   + .blockmap (createBlockmap;
- *            Squirrel.Mac updates from the ZIP — it IS the updater payload)
- *     feed   latest-mac.yml — files[0] is the ZIP (writeUpdateInfoFiles
- *            sorts zip first) and the legacy top-level path/sha512 point
- *            at it.
- *   win (nsis x64; artifactName "${productName}-${version}-${arch}-setup.${ext}"):
- *     exe    LearnHarness-<v>-x64-setup.exe   + .blockmap (createBlockmap)
- *     feed   latest.yml — a single file entry, the exe.
- *   linux (AppImage + deb, x64; artifactName "${productName}-${version}-${arch}.${ext}"
- *            is user-forced at the linux level, so it overrides BOTH targets'
- *            default name formats, and ${arch} expands per target ext:
- *            x64→x86_64 for AppImage, x64→amd64 for deb):
- *     image  LearnHarness-<v>-x86_64.AppImage (no blockmap in 26.15.3)
- *     deb    LearnHarness-<v>-amd64.deb       (no blockmap)
- *     feed   latest-linux.yml — the AppImage and deb entries merged by
- *            writeUpdateInfoFiles (order not deterministic; checked as a set).
- *
- * GitHub asset names equal these file names (all are already "safe" GitHub
- * names, so electron-publish uploads under the plain name) and every yml
- * files[].url equals the uploaded asset name.
- *
- * Draft selection is FAIL-CLOSED and replicates the existing matching used
- * by the workflow's draft job and electron-builder's GitHub publisher:
- * tag_name equals the tag ("v0.2.0") OR the bare version ("0.2.0"). Zero
- * matches, 2+ matches, or a published match → fail. A draft matched only
- * via the bare unprefixed form is a reported hazard: electron-builder
- * matches both spellings, so a later run could create a SECOND draft under
- * the v-tag and split the assets across two releases.
- *
- * CLI (cwd = the checked-out tag revision):
- *   tsx scripts/verify-release.ts select <releases.json> --tag <tag>
- *     → one JSON object on stdout: {releaseId, matchedTagName, warnings,
- *       assets:[{id,name,size,state}]}; diagnostics on stderr. Used by the
- *       workflow to locate the draft and its asset ids.
- *   tsx scripts/verify-release.ts verify <releases.json> <metadata-dir> --tag <tag>
- *     → full gate; human report on stdout; exit 0 only when everything
- *       below passes.
- *
- * The gate checks, and fails closed on any of:
- *   - tag ≠ "v" + package.json version, or a malformed release list;
- *   - electron-builder.yml/package.json drifting from the shapes the
- *     expected names were derived from (update this file's expectations
- *     when the packaging config changes — deliberately strict);
- *   - draft selection problems (above);
- *   - expected assets missing, zero-size, not in state "uploaded",
- *     duplicated, or unexpected extras (stale names from an older run);
- *   - update feeds that do not parse, carry the wrong version, reference
- *     a path/URL instead of a bare asset name (traversal / untrusted
- *     origin), reference an asset the release does not hold, disagree
- *     with the API-reported asset size, lack/misplace entries (mac ZIP
- *     must be first and back the legacy path/sha512), or carry an
- *     implausible sha512.
- */
+/** verify-release.ts — the final desktop-release gate. */
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { createRequire } from "node:module";
@@ -75,8 +7,7 @@ import { pathToFileURL } from "node:url";
 const require = createRequire(import.meta.url);
 const yaml = require("js-yaml") as { load(source: string): unknown };
 
-// ---------------------------------------------------------------------------
-// Types
+// --------------------------------------------------------------------------- Types
 // ---------------------------------------------------------------------------
 
 export type ReleaseAsset = { id: number; name: string; size: number; state: string };
@@ -100,8 +31,7 @@ export type ExpectedAssets = {
 type Issue = string;
 type Issues = Issue[];
 
-// ---------------------------------------------------------------------------
-// Version + expected assets
+// --------------------------------------------------------------------------- Version + expected assets
 // ---------------------------------------------------------------------------
 
 /** Verified product name spelled into every artifact (electron-builder.yml productName). */
@@ -132,8 +62,7 @@ export function expectedAssets(version: string): ExpectedAssets {
 		deb: `${PRODUCT_NAME}-${version}-amd64.deb`,
 		feed: "latest-linux.yml",
 	};
-	// Sidecar differential-update blockmaps: emitted for dmg, mac zip and
-	// NSIS exe (createBlockmap); AppImage/deb have none in app-builder-lib 26.15.3.
+	// Sidecar differential-update blockmaps: emitted for dmg, mac zip and NSIS exe (createBlockmap); AppImage/deb have none in app-builder-lib 26.15.3.
 	const blockmaps = [mac.dmg, mac.zip, win.exe].map((name) => `${name}.blockmap`);
 	return {
 		version,
@@ -144,15 +73,10 @@ export function expectedAssets(version: string): ExpectedAssets {
 	};
 }
 
-// ---------------------------------------------------------------------------
-// Release-list parsing (fail closed on any malformed entry)
+// --------------------------------------------------------------------------- Release-list parsing (fail closed on any malformed entry)
 // ---------------------------------------------------------------------------
 
-/**
- * `gh api --paginate --slurp` emits an array of pages ([[...], [...]]); a
- * hand-made single page is a plain array. Both are accepted, everything
- * else fails.
- */
+/** `gh api --paginate --slurp` emits an array of pages ([[...], [...]]); a hand-made single page is a plain array. */
 export function normalizeReleasePages(input: unknown): { ok: true; releases: unknown[] } | { ok: false; errors: Issues } {
 	if (!Array.isArray(input)) {
 		return { ok: false, errors: ["release list is not a JSON array"] };
@@ -212,8 +136,7 @@ export function parseReleases(entries: unknown[]): { ok: true; releases: Release
 	return { ok: true, releases };
 }
 
-// ---------------------------------------------------------------------------
-// Draft selection (replicates the draft job's + builder's matching, fail-closed)
+// --------------------------------------------------------------------------- Draft selection (replicates the draft job's + builder's matching
 // ---------------------------------------------------------------------------
 
 export function selectDraft(releases: ReleaseRecord[], tag: string, version: string): DraftSelection {
@@ -248,13 +171,10 @@ export function selectDraft(releases: ReleaseRecord[], tag: string, version: str
 	return { ok: true, release: match, warnings };
 }
 
-// ---------------------------------------------------------------------------
-// Packaging-config drift guard
+// --------------------------------------------------------------------------- Packaging-config drift guard
 // ---------------------------------------------------------------------------
 
-/** Names below were derived from these exact config shapes; drift means the
- *  expectations in this file must be re-derived against the new builder
- *  output. Failing here is deliberate: a silently stale gate is worse. */
+/** Names below were derived from these exact config shapes; drift means the expectations in this file must be re-derived against the new builder output. */
 export function verifyConfigAssumptions(config: unknown, pkg: unknown): { ok: true } | { ok: false; errors: Issues } {
 	const errors: Issues = [];
 	const bad = (message: string) => errors.push(message);
@@ -303,8 +223,7 @@ export function verifyConfigAssumptions(config: unknown, pkg: unknown): { ok: tr
 	return { ok: true };
 }
 
-// ---------------------------------------------------------------------------
-// Asset inventory
+// --------------------------------------------------------------------------- Asset inventory
 // ---------------------------------------------------------------------------
 
 export function verifyAssets(release: ReleaseRecord, expected: ExpectedAssets): { ok: true } | { ok: false; errors: Issues } {
@@ -327,8 +246,7 @@ export function verifyAssets(release: ReleaseRecord, expected: ExpectedAssets): 
 	return { ok: true };
 }
 
-// ---------------------------------------------------------------------------
-// Update-feed (latest*.yml) verification
+// --------------------------------------------------------------------------- Update-feed (latest*.yml) verification
 // ---------------------------------------------------------------------------
 
 type FeedExpectation = {
@@ -347,9 +265,7 @@ export function feedExpectations(expected: ExpectedAssets): FeedExpectation[] {
 	];
 }
 
-/** An updater reference must be a bare file name: no directories, no
- *  traversal, no URI scheme, no query/fragment. Anything else is a path the
- *  updater could be steered with. */
+/** An updater reference must be a bare file name: no directories, no traversal, no URI scheme, no query/fragment. */
 export function isPlainAssetName(url: unknown): url is string {
 	return typeof url === "string" && url !== "" && url !== "." && url !== ".." &&
 		!url.includes("/") && !url.includes("\\") && !url.includes(":") && !url.includes("?") && !url.includes("#") && !url.startsWith("~");
@@ -436,8 +352,7 @@ export function verifyMetadataFiles(
 		if (expectation.first != null && urls[0] !== expectation.first) {
 			errors.push(`${expectation.file}: files[0] must be "${expectation.first}" (got "${urls[0] ?? "nothing"}")`);
 		}
-		// Legacy single-file fields electron-updater still reads on some paths:
-		// the builder backs them with files[0].
+		// Legacy single-file fields electron-updater still reads on some paths: the builder backs them with files[0].
 		const first = entries[0];
 		if (first) {
 			if (info.path !== first.url) {
@@ -452,8 +367,7 @@ export function verifyMetadataFiles(
 	return { ok: true };
 }
 
-// ---------------------------------------------------------------------------
-// CLI (thin: parse args, read files, run the pure core, print, exit)
+// --------------------------------------------------------------------------- CLI (thin: parse args, read files, run the pure core, print, exit)
 // ---------------------------------------------------------------------------
 
 function usage(): string {
@@ -486,8 +400,7 @@ function loadReleases(file: string): { ok: true; releases: ReleaseRecord[] } | {
 	return parseReleases(normalized.releases);
 }
 
-/** Reads package.json (version) + electron-builder.yml from the cwd — the
- *  workflow checks out the tagged revision before running the gate. */
+/** Reads package.json (version) + electron-builder.yml from the cwd — the workflow checks out the tagged revision before running the gate. */
 function loadRepoConfig(): { ok: true; pkg: unknown; config: unknown } | { ok: false; errors: Issues } {
 	const pkg = readJson("package.json");
 	if (!pkg.ok) return { ok: false, errors: [pkg.error] };

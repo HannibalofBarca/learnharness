@@ -9,26 +9,11 @@ import { downloadFile, slugFilename } from "@/components/artifacts/download";
 import { DispatchCard } from "@/components/artifacts/dispatch-card";
 import type { ArtifactPartProps, DemoResult } from "@/src/core";
 
-/**
- * Demo artifact card (W6): while the part is input-available, a job activity
- * card (the chat view's jobs feed — the job-card idiom); when output-available, the demo
- * runs in a SANDBOXED iframe (sandbox="allow-scripts", no allow-same-origin →
- * no access to app storage/cookies/DOM).
- *
- * The bridge script (contracts.ts "Demo iframe bridge") is auto-injected into
- * every demo by buildDemoSrcDoc — never the model's job: ResizeObserver →
- * postMessage {type:"demo-resize",height} (parent sizes the iframe) and
- * window.onerror → {type:"demo-error",message} (error chip on the card, with
- * a "Send to teacher" button that feeds the error back into the lesson — the
- * fix loop).
- *
- * Bridge message handling is a pure function (reduceDemoBridgeState) so
- * tests cover it without a DOM.
- */
+/** Demo artifact card (W6): while the part is input-available, a job activity card (the chat view's jobs feed — the job-card idiom) */
 
 // ─── bridge injection + message handling (pure, testable) ───────────────────
 
-export const DEMO_BRIDGE_SCRIPT = `<script>(function(){
+const DEMO_BRIDGE_SCRIPT = `<script>(function(){
 var send=function(m){try{parent.postMessage(m,"*")}catch(e){}};
 var post=function(){
 var b=document.body;
@@ -47,23 +32,23 @@ setTimeout(post,400);
 })();</script>`;
 
 /** Inject the bridge before </body> (or at the end of a body-less document). */
-export function buildDemoSrcDoc(html: string): string {
+function buildDemoSrcDoc(html: string): string {
 	if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${DEMO_BRIDGE_SCRIPT}</body>`);
 	return `${html}${DEMO_BRIDGE_SCRIPT}`;
 }
 
-export interface DemoBridgeState {
+interface DemoBridgeState {
 	height: number | null;
 	error: string | null;
 }
 
-export const INITIAL_DEMO_BRIDGE_STATE: DemoBridgeState = { height: null, error: null };
+const INITIAL_DEMO_BRIDGE_STATE: DemoBridgeState = { height: null, error: null };
 
 const MIN_HEIGHT = 80;
 const MAX_HEIGHT = 2400;
 
 /** Pure reducer over incoming postMessage data (contracts.ts DemoBridgeMessage). */
-export function reduceDemoBridgeState(state: DemoBridgeState, data: unknown): DemoBridgeState {
+function reduceDemoBridgeState(state: DemoBridgeState, data: unknown): DemoBridgeState {
 	if (typeof data !== "object" || data === null) return state;
 	const message = data as { type?: unknown; height?: unknown; message?: unknown };
 	if (message.type === "demo-resize") {
@@ -80,17 +65,13 @@ export function reduceDemoBridgeState(state: DemoBridgeState, data: unknown): De
 
 // ─── the demo card ──────────────────────────────────────────────────────────
 
-/** The demo tool-call box: the part's output is the dispatch ack — the box
- * is the DispatchCard (live status via the chat view's jobs feed). The demo
- * itself renders from the steer message via DemoOutputCard. */
+/** The demo tool-call box: the part's output is the dispatch ack — the box is the DispatchCard (live status via the chat view's jobs feed). */
 export function DemoCard({ part }: ArtifactPartProps) {
 	if (part.state !== "output-available") return null;
 	return <DispatchCard toolCallId={part.toolCallId} kind="demo" />;
 }
 
-/** The demo artifact — exported: the steer card renders the delivered
- *  result. `messageId` + `initialInverted` carry the PERSISTED invert
- *  switch (details.ui.inverted via the artifact-ui route, owner 2026-10-07). */
+/** The demo artifact — exported: the steer card renders the delivered result. */
 export function DemoOutputCard({
 	output,
 	messageId,
@@ -139,13 +120,7 @@ function DemoFrame({
 	const actions = useContext(ChatActionsContext);
 	const iframeRef = useRef<HTMLIFrameElement | null>(null);
 	const [state, setState] = useState<DemoBridgeState>(INITIAL_DEMO_BRIDGE_STATE);
-	// Brightness inversion (owner, 2026-10-07): the switch state PERSISTS on
-	// the steer record (details.ui.inverted) — seeded here, written through
-	// the silent artifact-ui route on toggle. Without a chat page (tests,
-	// previews) the toggle stays local-only. The filter rides the iframe
-	// element, which carries the card's white backing, so one filter flips
-	// page + content together while hue-rotate(180deg) undoes invert's hue
-	// flip.
+	// Brightness inversion: the switch state PERSISTS on the steer record (details.ui.inverted) — seeded here
 	const [inverted, setInverted] = useState(initialInverted);
 	const toggleInverted = (next: boolean) => {
 		setInverted(next);
@@ -160,8 +135,7 @@ function DemoFrame({
 
 	useEffect(() => {
 		const onMessage = (event: MessageEvent) => {
-			// Only messages from THIS demo's iframe (the sandbox gives it an
-			// opaque origin; the window reference still matches).
+			// Only messages from THIS demo's iframe (the sandbox gives it an opaque origin; the window reference still matches).
 			if (!iframeRef.current || event.source !== iframeRef.current.contentWindow) return;
 			setState((prev) => reduceDemoBridgeState(prev, event.data));
 		};
@@ -171,9 +145,7 @@ function DemoFrame({
 
 	return (
 		<div className="rounded-xl border bg-card p-4 text-card-foreground" data-testid="demo-card">
-			{/* Caption header (owner, 2026-10-07): kind label + title in the
-			   label's size/tracking (title normal-case, foreground) — the
-			   figure card's grammar plus a name. Switch + download far right. */}
+			{/* Caption header: kind label + title in the label's size/tracking (title normal-case, foreground) — the figure card's grammar plus a name. */}
 			<div className="flex items-center justify-between gap-2">
 				<div className="flex min-w-0 items-baseline gap-2">
 					<span className="shrink-0 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -211,20 +183,13 @@ function DemoFrame({
 			<iframe
 				ref={iframeRef}
 				title={title}
-				// allow-scripts ONLY — no allow-same-origin: the demo can run code
-				// but never touch the app's storage, cookies, or DOM.
+				// allow-scripts ONLY — no allow-same-origin: the demo can run code but never touch the app's storage, cookies, or DOM.
 				sandbox="allow-scripts"
 				srcDoc={srcDoc}
-				// scrolling OFF (owner, 2026-10-07): the bridge auto-sizes the
-				// iframe to its content, so an internal scrollbar can only appear
-				// before the first resize lands — and a scrollable iframe TRAPS
-				// the wheel (session scrolling stalls over the demo). With
-				// scrolling disabled the wheel chains straight to the session.
+				// scrolling OFF: the bridge auto-sizes the iframe to its content, so an internal scrollbar can only appear before the first resize lands
 				scrolling="no"
 				className="mt-2 w-full rounded-lg border bg-white"
-				// content-box: the bridge reports the CONTENT height — with the
-				// preflight's border-box the 2px border would eat into it and clip
-				// the bottom of the demo (smoke finding, 2026-10-07).
+				// content-box: the bridge reports the CONTENT height — with the preflight's border-box the 2px border would eat into it and clip the bottom of the demo.
 				style={{
 					height: state.height ?? 360,
 					boxSizing: "content-box",
@@ -236,7 +201,7 @@ function DemoFrame({
 	);
 }
 
-export function DemoErrorChip({
+function DemoErrorChip({
 	title,
 	message,
 	onSend,

@@ -12,34 +12,22 @@ import { SidebarToggle } from "@/components/sidebar";
 import { StatsBar } from "@/components/stats-bar";
 import type { TurnUsage } from "@/src/core";
 
-/**
- * Home — the knowledge graph is the main view, full-bleed edge to edge
- * (owner, graph-view round 1): the canvas owns the whole column, running
- * under the header and the new-session dock, both of which float over it
- * with no gradient scrims. Sessions live in the toggleable sidebar.
- */
+/** Home — the knowledge graph is the main view, full-bleed edge to edge: the canvas owns the whole column */
 export function Home({
 	initialConfigured,
 	rendering = true,
 }: {
 	initialConfigured: boolean;
-	/** GRAPH RENDERING off (owner, 2026-10-06): the home's main view is
-	 * the chains view, not the canvas. Read server-side per navigation —
-	 * changing the setting applies on the next visit home. */
+	/** GRAPH RENDERING off: the home's main view is the chains view, not the canvas. */
 	rendering?: boolean;
 }) {
 	const router = useRouter();
 	const [topic, setTopic] = useState("");
-	/* The topic MIRROR ("nothing gets lost" round, 2026-10-01 — same
-	 * mechanics as the chat composer, owner's consistency ruling): a
-	 * dictation flush lands via setState, invisible to a closure that
-	 * waited through `await finish()`. Kept current at every write. */
+	/* The topic MIRROR: a dictation flush lands via setState, invisible to a closure that waited through `await finish()`. */
 	const topicRef = useRef("");
-	// Voice dictation (STT wave, 2026-09-17): finals append at the end of the
-	// topic draft; the strip lives in the stats bar's middle slot.
+	// Voice dictation: finals append at the end of the topic draft; the strip lives in the stats bar's middle slot.
 	const dictation = useDictation({
-		// Ref-first: the join reads the mirror so the send resuming after
-		// `await finish()` sees the dictated tail.
+		// Ref-first: the join reads the mirror so the send resuming after `await finish()` sees the dictated tail.
 		append: (t) => {
 			const v = joinDictation(topicRef.current, t);
 			topicRef.current = v;
@@ -47,15 +35,9 @@ export function Home({
 		},
 	});
 	const [busy, setBusy] = useState(false);
-	/* Run end focuses the topic input (owner, 2026-10-01): the hands are on
-	 * the keyboard from the stop. Falling edge only; this surface's only
-	 * dictation target IS this textarea, so no case-split is needed. */
+	/* Run end focuses the topic input: the hands are on the keyboard from the stop. */
 	const topicInputRef = useRef<HTMLTextAreaElement>(null);
-	// Tab navigates INTO the topic composer (owner, keyboard round
-	// 2026-10-06): the only text field on this surface — and home's
-	// composer is its OWN textarea, not the shared Composer component,
-	// so the chain is the ref itself (the smoke caught a selector that
-	// matched nothing here).
+	// Tab navigates INTO the topic composer: the only text field on this surface — and home's composer is its OWN textarea
 	const cycleTopicField = useCallback(
 		(): readonly HTMLElement[] => (topicInputRef.current ? [topicInputRef.current] : []),
 		[],
@@ -71,22 +53,14 @@ export function Home({
 		}
 	}, [dictation.active]);
 
-	/* PRACTICE MODE (owner, 2026-10-04): the graph composer's teach |
-	 *  practice switch — practice creates a kind:"practice" session and
-	 *  may carry proposition picks from the chain table (the chip above
-	 *  the composer opens the picker; the picks seed the opening prompt).
-	 *  Not enforcing any input format — the picks are a convenience. */
+	/* PRACTICE MODE: the graph composer's teach | practice switch */
 	const [mode, setMode] = useState<"teach" | "practice">("teach");
 	const [practiceProps, setPracticeProps] = useState<{ id: string; name: string; statement: string }[]>([]);
 	const [chainSelectOpen, setChainSelectOpen] = useState(false);
 	// The chain table is CONTROLLED off this id set (the lifted pick).
 	const pickedIds = useMemo(() => new Set(practiceProps.map((p) => p.id)), [practiceProps]);
 
-	/* FINISH DICTATION FIRST (owner, 2026-10-01): Enter may arrive while a
-	 * run is live with the topic still deferred in the run's buffer — stop
-	 * the run, let the last finals land, THEN read the REF mirror (not the
-	 * state closure) and run. Applies before the setup/key guards too, so
-	 * an intercepted draft is the complete one. */
+	/* FINISH DICTATION FIRST: Enter may arrive while a run is live with the topic still deferred in the run's buffer — stop the run */
 	const start = () => {
 		if (!dictation.active) {
 			void begin();
@@ -99,11 +73,7 @@ export function Home({
 		if (!t || busy) return;
 		setBusy(true);
 		try {
-			// The map context (owner, 2026-10-04): picks in EITHER mode ride
-			// the CREATION as graphContext — the server writes a
-			// graph-context marker as message[0] (a separate custom message
-			// before the learner's first user message, propositions + the
-			// chains among them); the prompt stays the learner's own words.
+			// The map context: picks in EITHER mode ride the CREATION as graphContext
 			const res = await fetch("/api/chats", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -114,9 +84,7 @@ export function Home({
 				}),
 			});
 			const { id } = (await res.json()) as { id: string };
-			// No settings PUT on create (per-session models, owner
-			// 2026-09-28): the SERVER stamps the newborn from the strong
-			// slot — the same default this surface's model control edits.
+			// No settings PUT on create: the SERVER stamps the newborn from the strong slot — the same default this surface's model control edits.
 			router.push(`/chat/${id}?prompt=${encodeURIComponent(t)}`);
 		} catch {
 			setBusy(false);
@@ -125,24 +93,10 @@ export function Home({
 
 	return (
 		<div className="relative h-dvh">
-			{/* Window-drag strip (merged chrome, owner 2026-09-17): a dedicated
-			    mask element, deliberately FIRST in the DOM. Electron's app-region
-			    mask resolves by DOM order — a no-drag element subtracts only drag
-			    regions that came EARLIER in the tree — not by z-index, so the
-			    header's old inline drag region (after <main>) re-added itself over
-			    the graph chrome row's carve-out and the buttons dragged the window.
-			    Placed first, every carved control (chrome row, node detail card,
-			    the toggle) comes later and subtracts correctly. Pure mask: it
-			    never needs to receive events — the mask routes the pixels. */}
+			{/* Window-drag strip: a dedicated mask element, deliberately FIRST in the DOM. */}
 			<div className="lh-drag absolute inset-x-0 top-0 h-13" aria-hidden="true" />
 
-			{/* The main view — full-bleed (owner, graph-view round 1): no
-			    padding on any side; it runs from the sidebar to the right edge
-			    and from the bottom to the top, under everything else. With
-			    rendering OFF (graph.rendering, owner 2026-10-06) it is the
-			    MINIMAL HOME — a quiet knowledge-base summary + the graph
-			    chrome's survivors; data, extraction, and the pick flow are
-			    untouched, and the chain table stays behind its button. */}
+			{/* The main view — full-bleed: no padding on any side; it runs from the sidebar to the right edge and from the bottom to the top, under everything else. */}
 			<main className="absolute inset-0">
 				{rendering ? (
 					<GraphView
@@ -161,30 +115,17 @@ export function Home({
 				)}
 			</main>
 
-			{/* Header floats over the graph — pointer-events-none except the
-			    toggle, so the canvas stays draggable/hoverable around it. Carries
-			    no app-region of its own: the strip's drag comes from the mask
-			    div above, and the toggle's lh-no-drag subtracts from it (it is
-			    later in the tree, so the subtraction sticks). */}
+			{/* Header floats over the graph — pointer-events-none except the toggle, so the canvas stays draggable/hoverable around it. */}
 			<header className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-2 px-3 py-2">
 				<div className="pointer-events-auto">
 					<SidebarToggle />
 				</div>
 			</header>
 
-			{/* New session — same floating blob as the chat composer, docked
-			    OVER the graph (no gradient: the graph runs clean under it to the
-			    bottom edge). Matches chat.tsx's DOCK geometry (max-w-[46rem]
-			    px-4) so nothing shifts when a session starts (owner). */}
+			{/* New session — same floating blob as the chat composer, docked OVER the graph (no gradient: the graph runs clean under it to the bottom edge). */}
 			<div className="pointer-events-none absolute inset-x-0 bottom-0 pb-5">
 				<div className="pointer-events-auto mx-auto w-full max-w-[46rem] px-4">
-					{/* The pick bar (owner vision, 2026-10-04): the chain
-					    table's selection is PERSISTENT — picked
-					    propositions show here as a count + Clear in EITHER
-					    mode (it survives mode switches; only a practice
-					    send consumes it). Practice mode with nothing picked
-					    shows the pick HINT so the affordance is discoverable;
-					    teaching mode with nothing picked renders nothing. */}
+					{/* The pick bar: the chain table's selection is PERSISTENT — picked propositions show here as a count + Clear in EITHER mode (it survives mode switches… */}
 					<ComposerActions
 						picker={(practiceProps.length > 0 || mode === "practice") && (
 							<NodePickerControl
@@ -209,9 +150,7 @@ export function Home({
 							setTopic(e.target.value);
 						}}
 						onKeyDown={(e) => {
-							// Esc ends dictation (the dictate decisions: click-again or
-							// Esc) — stopPropagation claims it (keyboard wave A) so
-							// the window chain doesn't also abort a turn.
+							// Esc ends dictation (the dictate decisions: click-again or Esc) — stopPropagation claims it so the window chain doesn't also abort a turn.
 							if (e.key === "Escape" && dictation.active) {
 								e.preventDefault();
 								e.stopPropagation();
@@ -228,8 +167,7 @@ export function Home({
 						rows={1}
 						className="field-sizing-content lh-input max-h-48 min-h-10 flex-1 resize-none bg-transparent px-2.5 py-2 outline-none placeholder:text-muted-foreground"
 					/>
-					{/* No tooltip on the start square — the ↵ glyph is the
-					    affordance (owner, subtlety round 2026-09-25). */}
+					{/* No tooltip on the start square — the ↵ glyph is the affordance. */}
 					<button
 						type="submit"
 						aria-label="Start session"
@@ -239,10 +177,7 @@ export function Home({
 						<CornerDownLeftIcon className="size-5" />
 					</button>
 					</form>
-					{/* Same as the chat view's under-composer stats bar (owner) — no
-					    session yet, so the LEFT side renders nothing (wave 7 sweep)
-					    while the RIGHT keeps the strong-slot control (fix wave: the
-					    pills write /api/settings/models). */}
+					{/* Same as the chat view's under-composer stats bar — no session yet, so the LEFT side renders nothing while the RIGHT keeps the strong-slot control. */}
 					<StatsBar
 						dictationSlot={<DictationBar dictation={dictation} />}
 						turns={[] as TurnUsage[]}

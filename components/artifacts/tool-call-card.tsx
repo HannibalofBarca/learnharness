@@ -3,16 +3,7 @@
 import { ChevronRight } from "lucide-react";
 import type { ArtifactPartProps } from "@/src/core";
 
-/**
- * The generic tool-call card (sources v1, 2026-09-19): a quiet, collapsed
- * one-liner per synchronous tool call — the tool name plus the headline
- * argument — expandable to the full input and output. The user's spec:
- * "at least the tool name; for read, the file name; everything collapsed
- * by default; not distracting — background stuff." Unregistered tools
- * still render nothing (chat.tsx's registry default); this card is only
- * for the learner-filesystem set (read/ls/find/grep) where the call IS
- * worth a trace in the transcript.
- */
+/** The generic tool-call card: a quiet, collapsed one-liner per synchronous tool call — the tool name plus the headline argument */
 
 interface ToolCallPart {
 	type: string;
@@ -23,9 +14,7 @@ interface ToolCallPart {
 	errorText?: string;
 }
 
-/** The collapsed headline argument per tool: path for read/ls, pattern for
- *  find/grep — shown as given, never resolved (the absolute path lands in
- *  the expanded view when present in the output). */
+/** The collapsed headline argument per tool: path for read/ls, pattern for find/grep — shown as given */
 function headlineArg(tool: string, input: unknown): string {
 	const inp = (input ?? {}) as Record<string, unknown>;
 	if (tool === "read" || tool === "ls") {
@@ -33,18 +22,14 @@ function headlineArg(tool: string, input: unknown): string {
 		return p;
 	}
 	if (typeof inp.pattern === "string") return inp.pattern;
-	// list_propositions: the session id is the call's subject — the
-	// collapsed line reads "list_propositions chat_…". Shown as given
-	// (the id is exactly what list_sessions reported to the model).
+	// list_propositions: the session id is the call's subject — the collapsed line reads "list_propositions chat_…".
 	if (tool === "list_propositions" && typeof inp.session === "string" && inp.session.length > 0) {
 		return inp.session;
 	}
 	return "";
 }
 
-/** Render a tool result body: plain strings verbatim, image-bearing read
- *  results show their text + an attachment note (the image itself is the
- *  model's — the learner sees only that it happened). */
+/** Render a tool result body: plain strings verbatim, image-bearing read results show their text + an attachment note (the image itself is the model's */
 function outputText(output: unknown): string | null {
 	if (output == null) return null;
 	if (typeof output === "string") return output;

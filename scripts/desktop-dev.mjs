@@ -1,7 +1,4 @@
-// `npm run desktop:dev` on any OS: the Next dev server on 127.0.0.1:3000
-// plus the Electron shell pointed at it (LH_DEV_URL). Edits to the app
-// (components, routes, src/) hot-reload; edits to electron/*.cjs need this
-// command restarted — never a reinstall. Ctrl+C stops both.
+// `npm run desktop:dev` on any OS: the Next dev server on 127.0.0.1:3000 plus the Electron shell pointed at it (LH_DEV_URL).
 import { spawn } from "node:child_process";
 import http from "node:http";
 

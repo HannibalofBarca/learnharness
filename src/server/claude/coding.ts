@@ -1,11 +1,4 @@
-/**
- * Coding chats (owner 2026-10-29): a lesson tutor opens a linked coding
- * chat with `coding_open` when the learner asks to move to the coding
- * part. The coding chat is its own session (kind "code") that runs Claude
- * Code inside a per-topic workspace folder under CODE_WORKSPACES, with a
- * shell and the VS Code link (launch.ts). Its first message carries the
- * setup brief; the lesson stays readable through resume_session.
- */
+/** Coding chats: a lesson tutor opens a linked coding chat with `coding_open` when the learner asks to move to the coding part. */
 
 import fs from "node:fs";
 import path from "node:path";
@@ -38,7 +31,7 @@ export const CODING_TOOLS: ListedTool[] = [
 ];
 
 /** Create (or find) the coding chat for a lesson + folder. */
-export function openCodingChat(lessonChatId: string, folder: string, brief: string, node?: string): { chatId: string; workspace: string; reused: boolean } | { error: string } {
+function openCodingChat(lessonChatId: string, folder: string, brief: string, node?: string): { chatId: string; workspace: string; reused: boolean } | { error: string } {
 	const lesson = stores.chatStore.getChat(lessonChatId);
 	if (!lesson) return { error: "Unknown lesson session." };
 	if ((lesson.kind ?? "teach") !== "teach") return { error: "coding_open is for lesson sessions." };

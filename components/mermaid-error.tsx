@@ -4,12 +4,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { MermaidErrorComponentProps } from "streamdown";
 
-/**
- * Fallback for mermaid diagrams that fail to parse — wired via Streamdown's
- * `mermaid.errorComponent`. Replaces the default light-themed red box with a
- * card matching the app: the error, the source in a details block (so a
- * broken diagram doesn't flood the transcript), and a retry.
- */
+/** Fallback for mermaid diagrams that fail to parse — wired via Streamdown's `mermaid.errorComponent`. */
 export const MermaidError = ({
 	chart,
 	error,

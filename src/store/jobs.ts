@@ -1,12 +1,4 @@
-/**
- * JobStore — the fs JSON adapter: one file per background sub-agent job in
- * data/jobs/ (contracts.ts "THE ASYNC PROTOCOL"). Keyed by toolCallId for
- * dedup: the chat-handler spawn hook never creates two jobs for the same
- * tool part. Implements core/ports.ts JobStore. Idioms: sync fs, id-guarded
- * filenames, JSON with tab indentation. Writes are small and rare (activity
- * line updates); the read-modify-write sections in the runner contain no
- * awaits, so they are atomic within the single-threaded event loop.
- */
+/** JobStore — the fs JSON adapter: one file per background sub-agent job in data/jobs/ (contracts.ts "THE ASYNC PROTOCOL"). */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -24,10 +16,7 @@ function jobFile(id: string): string {
 	return path.join(JOBS_DIR, `${id}.json`);
 }
 
-/** Writes announce on the events channel AFTER the write lands (the
- *  notify-after-write law, beginTurn precedent) — jobs-changed is what
- *  retires the view's interval poll (push S4, 2026-10-02): dispatch cards,
- *  progress lines, settles, and aborts all surface as one fetch. */
+/** Writes announce on the events channel AFTER the write lands (the notify-after-write law, beginTurn precedent) */
 function createJob(init: CreateJobInit): JobRecord {
 	const now = new Date().toISOString();
 	const record: JobRecord = {
@@ -55,17 +44,13 @@ function getJob(id: string): JobRecord | null {
 	}
 }
 
-/** Merge a partial patch into the record (identity fields are immutable).
- *  An explicit patch.updatedAt is honored (tests pin deterministic order);
- *  otherwise the merge bumps it to now. */
+/** Merge a partial patch into the record (identity fields are immutable). */
 function updateJob(id: string, patch: JobPatch): JobRecord | null {
 	const record = getJob(id);
 	if (!record) return null;
 	const next: JobRecord = { ...record, ...patch, updatedAt: patch.updatedAt ?? new Date().toISOString() };
 	fs.writeFileSync(jobFile(id), JSON.stringify(next, null, "\t"), "utf-8");
-	// EVERY write, not just status flips: progress-line updates must reach
-	// the dispatch cards (the view debounces the fetch bursts). A missing id
-	// wrote nothing and stays silent.
+	// EVERY write, not just status flips: progress-line updates must reach the dispatch cards (the view debounces the fetch bursts).
 	emit("jobs-changed", { chatId: next.chatId });
 	return next;
 }
@@ -90,10 +75,7 @@ function findJobByToolCallId(chatId: string, toolCallId: string): JobRecord | nu
 	return listJobs(chatId).find((j) => j.toolCallId === toolCallId) ?? null;
 }
 
-/** Delete every job record file for a chat (session-deletion wave 6) —
- *  running or finished, they are the chat's records and die with it.
- *  Returns how many files were removed. The deletion route refuses while
- *  jobs are still running, so every record here is terminal. */
+/** Delete every job record file for a chat — running or finished, they are the chat's records and die with it. */
 function deleteJobsForChat(chatId: string): number {
 	let removed = 0;
 	for (const job of listJobs(chatId)) {
@@ -104,8 +86,7 @@ function deleteJobsForChat(chatId: string): number {
 			/* already gone — the count is best-effort truth */
 		}
 	}
-	// Only when something actually died — a zero-file delete wrote nothing
-	// (the endTurn present-entry law).
+	// Only when something actually died — a zero-file delete wrote nothing (the endTurn present-entry law).
 	if (removed > 0) emit("jobs-changed", { chatId });
 	return removed;
 }

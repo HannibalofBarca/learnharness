@@ -1,11 +1,4 @@
-/**
- * The Claude Code bridge core (docs/claude-code-bridge.md), zero tokens: a
- * scripted "Claude" drives the MCP-side callTool while the learner's inputs
- * go through the real handleChatInput — the same seams the MCP route and
- * POST /api/chat use.
- *
- * Runs under an isolated LH_DATA_DIR (set before any config-loading import).
- */
+/** The Claude Code bridge core (docs/claude-code-bridge.md), zero tokens */
 
 import assert from "node:assert/strict";
 import fs from "node:fs";

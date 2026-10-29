@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 
 // Transport-only types: never import the server's extraction/agent module here.
-export interface NotesImportResult {
+interface NotesImportResult {
 	requestIndex: number;
 	filePath: string;
 	ok: boolean;
@@ -16,9 +16,8 @@ export interface NotesImportResult {
 	slots?: string[];
 }
 
-/** Validate the entire response before applying any row: a malformed index
- * must never attribute another file's success to this file (same names included). */
-export function parseNotesImportResults(body: unknown, files: readonly File[]): NotesImportResult[] {
+/** Validate the entire response before applying any row */
+function parseNotesImportResults(body: unknown, files: readonly File[]): NotesImportResult[] {
 	const invalid = () => new Error("Invalid import response. Please retry the file.");
 	if (!body || typeof body !== "object" || !("results" in body) || !Array.isArray(body.results) || body.results.length !== files.length) throw invalid();
 	const seen = new Set<number>();
@@ -37,7 +36,7 @@ export function parseNotesImportResults(body: unknown, files: readonly File[]): 
 	return body.results as NotesImportResult[];
 }
 
-export async function postNotesImport(files: readonly File[]): Promise<NotesImportResult[]> {
+async function postNotesImport(files: readonly File[]): Promise<NotesImportResult[]> {
 	const form = new FormData();
 	for (const file of files) form.append("files", file);
 	const response = await fetch("/api/graph/import", { method: "POST", body: form });

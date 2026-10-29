@@ -1,22 +1,6 @@
 import { cn } from "@/lib/utils";
 
-/**
- * THE BRAILLE SPINNER (owner, minimal-color round): the one working-state
- * indicator, in the terminal's own glyph language. Pure function + CSS —
- * no JS frame timer, no React re-render per frame; each frame is a tiny
- * <g> whose opacity is compositor-animated, so the cost is below the old
- * breathing dot's (which animated opacity AND transform).
- *
- * Geometry: the classic cli-spinner sequence (⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏, 10 frames,
- * 80ms each — 800ms cycle) as EXACT dot bitmaps in a 2×4 braille cell
- * (dots 1-3 = left column, 4-6 = right). One shared keyframes (globals.css
- * .braille-frame) holds each frame visible for its 10% slice; frames
- * stagger via positive animation-delay, so frame 0 leads from first paint.
- *
- * Static fallback (SSR pre-hydrate, prefers-reduced-motion, print): frame
- * 0 (⠋) shows — a legible glyph, not a blank. Motion is honest here: it
- * exists only while a turn is in flight and vanishes the moment it ends.
- */
+/** THE BRAILLE SPINNER: the one working-state indicator, in the terminal's own glyph language. */
 const FRAMES: ReadonlyArray<{ dots: ReadonlyArray<readonly [number, number]> }> = [
 	{ dots: [[1, 1], [1, 3], [3, 1]] },
 	{ dots: [[1, 1], [3, 1], [3, 3]] },
@@ -31,8 +15,7 @@ const FRAMES: ReadonlyArray<{ dots: ReadonlyArray<readonly [number, number]> }> 
 ];
 
 /** The animation constants (mirrors globals.css .braille-frame). */
-export const SPINNER_FRAME_MS = 80;
-export const SPINNER_FRAMES = FRAMES.length;
+const SPINNER_FRAME_MS = 80;
 
 export function BrailleSpinner({
 	className,

@@ -6,20 +6,7 @@ import { Shimmer } from "@/components/ai-elements/shimmer";
 import { toolActivityLabel } from "@/src/core";
 import type { ArtifactPartProps } from "@/src/core";
 
-/**
- * The LIVE tool-input card (owner, streaming round 2026-10-01): what a
- * tool call looks like while the agent WRITES it. A tool part sits in
- * `input-streaming` for its whole execution (the bridge defers
- * input-available to tool_execution_end), so this card IS the working
- * state — spinner + shimmered activity label in the header (the retired
- * transcript bottom line's text, same recipe as the thinking row), and
- * the streaming input itself watchable on expand. The moment the call
- * settles, the part re-renders through the artifact registry and the
- * quiet settled card replaces this one.
- *
- * The one working-state grammar everywhere (owner): Braille spinner +
- * Shimmer(duration 1) — the thinking row, this card, the sidebar row.
- */
+/** The LIVE tool-input card: what a tool call looks like while the agent WRITES it. */
 interface StreamingToolPart {
 	type: string;
 	state: string;
@@ -31,8 +18,7 @@ export function LiveToolCard({ part }: ArtifactPartProps) {
 	const p = part as StreamingToolPart;
 	const tool = p.type.replace(/^tool-/, "");
 	const inp = (p.input ?? {}) as Record<string, unknown>;
-	// The headline argument (ToolCallCard's rule, shown as given): path for
-	// read/ls, pattern for find/grep, session for list_propositions.
+	// The headline argument (ToolCallCard's rule, shown as given): path for read/ls, pattern for find/grep, session for list_propositions.
 	let arg = "";
 	if (typeof inp.path === "string" && inp.path) arg = inp.path;
 	else if (typeof inp.pattern === "string" && inp.pattern) arg = inp.pattern;

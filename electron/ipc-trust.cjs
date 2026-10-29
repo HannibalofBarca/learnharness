@@ -1,7 +1,6 @@
 "use strict";
 
-/** An IPC request is trusted only from a window's main frame on the app's
- *  own origin (never a subframe, never a navigated-away page). */
+/** An IPC request is trusted only from a window's main frame on the app's own origin (never a subframe, never a navigated-away page). */
 function trustedSender(event, origin, BrowserWindow) {
 	const win = BrowserWindow.fromWebContents(event.sender);
 	try {

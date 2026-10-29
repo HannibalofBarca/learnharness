@@ -1,8 +1,4 @@
-/**
- * Tool-argument validation (the old engine loop's job, now the bridge's —
- * docs/claude-code-bridge.md): the tool's argument heal first, then TypeBox
- * conversion and a compiled check. Pure: no stores, no server.
- */
+/** Tool-argument validation (the old engine loop's job, now the bridge's — docs/claude-code-bridge.md): the tool's argument heal first */
 
 import { Compile } from "typebox/compile";
 import { Value } from "typebox/value";

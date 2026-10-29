@@ -1,28 +1,4 @@
-/**
- * PUT /api/settings/[section] — section-scoped record writes
- * (settings-storage wave, 2026-09-19). One PUT replaces ONE section
- * replace-whole (absent fields = absent overrides — the house settings
- * discipline, same as the per-chat and defaults routes); sections are
- * independent, so partial writes can never clobber each other.
- *
- *   Body: the complete desired section object. Parse + validate strictly
- *   (server/settings-body.ts): a bad shape/type is a 400 carrying the
- *   supported list where one exists. Models are the learner's Claude Code
- *   (docs/claude-code-bridge.md) — no model sections are validated here.
- *   The agent section additionally validates prompt
- *   switches — under the orphan-heal contract (interlude 2026-09-26): an
- *   ON switch with its override file present is valid as-is; an ON whose
- *   file is gone (deleted outside the app, a disk wipe, or a record from
- *   before the delete-clears-switch fix) is an ORPHAN and is healed to
- *   OFF (the key drops) inside the same write — never a 400. Invariant:
- *   a user can never get stuck unable to write settings, and switch
- *   state never contradicts file reality for long (the delete route
- *   clears the switch by construction; this is the backstop).
- *
- * The static siblings (defaults, prompts) take precedence over this
- * dynamic segment — Next resolves static routes first, so "prompts" never
- * lands here.
- */
+/** PUT /api/settings/[section] — section-scoped record writes. */
 
 import type { AgentSettings } from "@/src/core";
 import {
@@ -55,15 +31,9 @@ export async function PUT(request: Request, ctx: { params: Promise<{ section: st
 	}
 	let agentHealed: AgentSettings | undefined;
 
-	// Section-specific cross-validation (against the prompt store) — the
-	// parsers only see shapes.
+	// Section-specific cross-validation (against the prompt store) — the parsers only see shapes.
 	if (section === "agent") {
-		// Orphan-heal (contract fix, interlude 2026-09-26): an ON switch
-		// whose override file is gone (or whose segment left the source
-		// tree) is healed to OFF (key dropped) inside this write — never a
-		// 400. The old 400 trapped users: the record's own orphaned ON was
-		// mirrored back by every write while the disabled toggle couldn't
-		// reach the OFF escape hatch. An ON with a real file stays valid.
+		// Orphan-heal: an ON switch whose override file is gone (or whose segment left the source tree) is healed to OFF (key dropped) inside this write
 		const agent = parsed.settings as AgentSettings;
 		const segments = new Set(allSegmentPaths());
 		const orphans: string[] = [];
@@ -78,12 +48,10 @@ export async function PUT(request: Request, ctx: { params: Promise<{ section: st
 		}
 	}
 
-	// The agent section lands HEALED when orphaned prompt switches were
-	// found above — after every write the record and file reality agree.
+	// The agent section lands HEALED when orphaned prompt switches were found above — after every write the record and file reality agree.
 	const sectionOut = section === "agent" && agentHealed ? agentHealed : parsed.settings;
 
-	// Read-modify-write ONE section of the record; everything else rides
-	// along untouched (other sections, unknown keys — sanitize preserves).
+	// Read-modify-write ONE section of the record; everything else rides along untouched (other sections, unknown keys — sanitize preserves).
 	const record = readSettingsRecord() ?? { version: 1 };
 	const next = { ...record, [section]: sectionOut };
 	writeSettingsRecord(next);

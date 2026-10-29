@@ -11,9 +11,7 @@ const sendToUserInput = Type.Object({
 	}),
 });
 
-/** Claude's documented verbatim mid-turn output channel. Availability is
- * model-gated at the shared conversation-agent construction boundary;
- * the native call remains in history, and the view renders its message. */
+/** Claude's documented verbatim mid-turn output channel. */
 export const sendToUserTool: AgentTool<typeof sendToUserInput> = {
 	name: SEND_TO_USER_TOOL,
 	label: SEND_TO_USER_TOOL,

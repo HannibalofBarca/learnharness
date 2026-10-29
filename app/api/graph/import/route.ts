@@ -1,10 +1,4 @@
-/**
- * POST /api/graph/import — the notes front door under the Claude Code
- * bridge (docs/claude-code-bridge.md). The app has no model of its own, so
- * uploads are QUEUED (data/claude/notes-queue/) and the learner's tutor
- * Claude imports them with graph_import_notes (no path = next queued file)
- * when asked in any session's terminal. Multipart form, field "files".
- */
+/** POST /api/graph/import — the notes front door under the Claude Code bridge (docs/claude-code-bridge.md). */
 import { queueNotes } from "@/src/server";
 
 export const dynamic = "force-dynamic";

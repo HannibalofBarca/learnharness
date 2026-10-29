@@ -1,8 +1,6 @@
 import { findSessionTextMatches } from "@/src/core";
 
-/** Only marked session surfaces enter Find. Offscreen scroller content counts;
- * hidden/unmounted sections do not. Never walk embedded documents or drafts.
- * Do NOT exclude aria-hidden globally: KaTeX's VISIBLE HTML uses it too. */
+/** Only marked session surfaces enter Find. */
 const EXCLUDED = [
 	"script", "style", "noscript", "textarea", "input", "select", "iframe", "canvas",
 	"title", "defs", "metadata", "desc", ".katex-mathml", ".sr-only", "[hidden]",
@@ -17,8 +15,7 @@ const BLOCK_DISPLAYS = new Set(["block", "flex", "grid", "list-item", "table", "
 
 function styleOf(element: Element): CSSStyleDeclaration | null {
 	const view = element.ownerDocument.defaultView;
-	// Test DOMs (linkedom) may ship no CSS OM — degrade to attribute-only
-	// visibility checks; real browsers always implement it.
+	// Test DOMs (linkedom) may ship no CSS OM — degrade to attribute-only visibility checks; real browsers always implement it.
 	return typeof view?.getComputedStyle === "function" ? view.getComputedStyle(element) : null;
 }
 
@@ -35,9 +32,7 @@ function displayedRoot(root: Element): boolean {
 	return true;
 }
 
-/** Preserve a source-point map while collapsing ordinary HTML whitespace.
- * This lets a phrase span inline markup, without concatenating separate cards
- * or paragraphs. Preformatted code/user text keeps its literal whitespace. */
+/** Preserve a source-point map while collapsing ordinary HTML whitespace. */
 function displayRuns(root: Element): DisplayRun[] {
 	const runs: DisplayRun[] = [];
 	let text = "";
@@ -71,8 +66,7 @@ function displayRuns(root: Element): DisplayRun[] {
 		if (hidden(element, style)) return;
 		if (element.tagName === "BR") { flush(); return; }
 		const block = !!style && BLOCK_DISPLAYS.has(style.display);
-		// Without a CSS OM (test DOMs), the HTML defaults stand: only pre-family
-		// tags keep literal whitespace.
+		// Without a CSS OM (test DOMs), the HTML defaults stand: only pre-family tags keep literal whitespace.
 		const whiteSpace = style?.whiteSpace ?? (element.matches("pre, listing, plaintext") ? "pre" : "normal");
 		if (block) flush();
 		for (const child of element.childNodes) {
@@ -86,8 +80,7 @@ function displayRuns(root: Element): DisplayRun[] {
 	return runs;
 }
 
-/** Minimal AbstractRange stand-in for DOMs without live Range support
- *  (linkedom in tests). Real browsers always take document.createRange. */
+/** Minimal AbstractRange stand-in for DOMs without live Range support (linkedom in tests). */
 class StaticRangeLike {
 	startContainer: Node = null as unknown as Node;
 	startOffset = 0;
@@ -141,9 +134,7 @@ export function sessionFindRanges(scope: HTMLElement, query: string): Range[] {
 	return ranges;
 }
 
-/** Frozen boundary identity, rather than a mutable live Range, survives text
- * appends while Find is open. A re-render may replace nodes; then the caller
- * clamps the old index without pulling the reader to a different passage. */
+/** Frozen boundary identity, rather than a mutable live Range, survives text appends while Find is open. */
 export interface SessionRangeIdentity {
 	start: Node; startOffset: number; end: Node; endOffset: number;
 }

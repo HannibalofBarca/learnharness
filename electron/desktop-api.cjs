@@ -2,8 +2,7 @@
 
 const HEADER = "x-learnharness-desktop";
 
-/** Called for EVERY outgoing request, so redirects cannot carry the secret
- * to another origin. Never expose this function or its secret to preload. */
+/** Called for EVERY outgoing request, so redirects cannot carry the secret to another origin. */
 function desktopAPIHeaders(details, origin, secret, windows) {
 	const headers = { ...details.requestHeaders };
 	for (const name of Object.keys(headers)) if (name.toLowerCase() === HEADER) delete headers[name];

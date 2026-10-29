@@ -10,22 +10,7 @@ import { emit } from "../core/events.ts";
 import { ChatInputError, inputAppends, parseChatInput, type ChatInput } from "../core/input-events.ts";
 import { BridgeAgent, claudeSession, deliver } from "./claude/session.ts";
 
-/**
- * One chat turn over the server-owned native record, bridged to the
- * learner's Claude Code (docs/claude-code-bridge.md). Framework-free (plain
- * Request/Response); the Next route in app/api/chat is a one-line wrapper.
- *
- * THE INPUT-EVENTS CONTRACT is unchanged: POST /api/chat carries
- * {chatId, input} — one explicit event (text / answer / continue / practice
- * thinking / next). The input's native appends persist write-ahead, then
- * their model-facing text goes to the chat's ClaudeSession: a parked MCP
- * call (question, problem, wait_for_learner) takes it and a turn opens for
- * Claude's reply; with nothing parked it waits in the session inbox.
- *
- * Turns are opened by startBridgeTurn — from here, or from the MCP side when
- * Claude produces output with no turn running. A turn settles when Claude
- * blocks again; its onFinish persists the turn's messages.
- */
+/** One chat turn over the server-owned native record, bridged to the learner's Claude Code (docs/claude-code-bridge.md). */
 
 function settlementErrorText(error: unknown): string {
 	return error instanceof TurnPersistenceError ? error.message : "An error occurred.";
@@ -53,9 +38,8 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 	return handleChatInput(chatId, input);
 }
 
-/** The model-facing text of the learner's appended messages — what Claude
- *  receives as the parked call's result. */
-export function learnerText(appends: readonly LhMessage[]): string {
+/** The model-facing text of the learner's appended messages — what Claude receives as the parked call's result. */
+function learnerText(appends: readonly LhMessage[]): string {
 	const parts: string[] = [];
 	for (const m of appends) {
 		const message = m as { role?: string; content?: unknown; toolName?: string };
@@ -93,8 +77,7 @@ export async function handleChatInput(chatId: string, input: ChatInput): Promise
 		throw err;
 	}
 
-	// One turn per chat, ever: while Claude is producing a reply the composer
-	// steers (POST /api/chats/[id]/steer) instead of sending.
+	// One turn per chat, ever: while Claude is producing a reply the composer steers (POST /api/chats/[id]/steer) instead of sending.
 	if (isTurnRunning(chatId)) {
 		return Response.json({ error: "A turn is already running for this session" }, { status: 409 });
 	}
@@ -123,11 +106,7 @@ export async function handleChatInput(chatId: string, input: ChatInput): Promise
 	return Response.json({ ok: true });
 }
 
-/**
- * Open a turn for Claude's output: a BridgeAgent over the current record,
- * run as a background object every view can attach to. Returns the running
- * agent when one already exists.
- */
+/** Open a turn for Claude's output: a BridgeAgent over the current record, run as a background object every view can attach to. */
 export function startBridgeTurn(chatId: string): BridgeAgent | undefined {
 	const session = claudeSession(chatId);
 	if (session.agent && !session.agent.settled) return session.agent;
@@ -165,10 +144,7 @@ export function startBridgeTurn(chatId: string): BridgeAgent | undefined {
 	return agent;
 }
 
-/** Mid-reply composer input (POST /api/chats/[id]/steer): the message joins
- *  the live turn (streams + persists with it) and reaches Claude with its
- *  next tool result. False when no turn is running (the client sends it as
- *  a normal message instead). */
+/** Mid-reply composer input (POST /api/chats/[id]/steer) */
 export function steerClaude(chatId: string, message: LhMessage): boolean {
 	const session = claudeSession(chatId);
 	const agent = session.agent;
@@ -178,8 +154,7 @@ export function steerClaude(chatId: string, message: LhMessage): boolean {
 	return true;
 }
 
-/** A dismissed question releases Claude's parked call (no turn opens: the
- *  learner skipped it; Claude decides what comes next). */
+/** A dismissed question releases Claude's parked call (no turn opens: the learner skipped it; Claude decides what comes next). */
 export function deliverDismissal(chatId: string, appends: readonly LhMessage[]): void {
 	const session = claudeSession(chatId);
 	if (session.blocked?.kind !== "question") return;

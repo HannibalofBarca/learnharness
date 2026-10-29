@@ -1,14 +1,4 @@
-/**
- * POST /api/claude/hook?chat=<id> — Claude Code's Stop hook (curl from the
- * pre-wired settings, payload on stdin → request body).
- *
- * The tutor must end every reply on a blocking tool; when it stops without
- * one, the GUI would sit on an open turn. So: if nothing is parked and the
- * hook has not already forced a continuation, answer `decision: block` with
- * the reason Claude reads; otherwise let it stop and settle the turn.
- * The payload's session_id also records which Claude conversation backs
- * this chat (covers the fresh-after-failed-resume launch).
- */
+/** POST /api/claude/hook?chat=<id> — Claude Code's Stop hook (curl from the pre-wired settings, payload on stdin → request body). */
 
 import { stores } from "../stores.ts";
 import { rememberClaudeSession } from "./launch.ts";

@@ -1,20 +1,6 @@
-/**
- * THE PRACTICE TOOLS (practice sessions, owner design 2026-10-04): the
- * practice agent's ENTIRE toolset — `problem` (pose: terminates the turn;
- * the commitment rides the call's arguments, hidden from the learner UI)
- * and `conclude` (end the problem: normal result, the turn continues so
- * the same reply can reveal + pose the next). The gating law (owner
- * ruling): an agent cannot pose while a problem is active and cannot
- * conclude with nothing active — activeProblemOf is the single fold both
- * gates read.
- *
- * Mechanics-only descriptions (the doctrine ruling, 2026-10-04): the tool
- * descriptions carry WHAT to pass and WHAT happens — the theory, the
- * commit-before-pose law, the hint ladder all live in the system prompt
- * (prompts/practice/10-doctrine.md).
- */
+/** THE PRACTICE TOOLS: the practice agent's ENTIRE toolset — `problem` (pose: terminates the turn; the commitment rides the call's arguments */
 
-import { Type, type Static } from "typebox";
+import { Type } from "typebox";
 import type { AgentTool } from "../../core/agent-types.ts";
 import { resolveTargetId } from "../../core/chains.ts";
 import { proberGraphTools, type GraphToolContext } from "./graph.ts";
@@ -25,46 +11,29 @@ import { healEncodedArguments, healToolRecord } from "./heal.ts";
 
 
 /** The record-reading context the gates need (the plan-tools idiom). */
-export interface PracticeToolContext {
+interface PracticeToolContext {
 	chatId: string;
 	chatStore: { getChat(id: string): { messages: LhMessage[]; kind?: string } | null };
-	/** The WHOLE-graph node list, read fresh per pose (owner round 9 — the
-	 *  mastery-trace contract): targets validate against every proposition,
-	 *  not just the session's picks, so pickless sessions and future
-	 *  graph-tools poses stay valid. Absent (tests) = no validation. */
+	/** The WHOLE-graph node list, read fresh per pose: targets validate against every proposition, not just the session's picks */
 	graphNodes?: () => ReadonlyArray<Pick<import("../../core/contracts/graph.ts").GraphNode, "id" | "name">>;
-	/** THE RARELY-NEEDED SET (owner round 10, 2026-10-05): the map readers
-	 *  behind the SAME settings gate as the prober's (graphToolsEnabled at
-	 *  the composition root). Absent context (tests) = absent from the
-	 *  registry. File reading and research are the tutor Claude's own
-	 *  (docs/claude-code-bridge.md). */
+	/** THE RARELY-NEEDED SET: the map readers behind the SAME settings gate as the prober's (graphToolsEnabled at the composition root). */
 	graph?: GraphToolContext;
 }
 
-/** TURN-SCOPED GATE STATE (the BKT incident, 2026-10-05): the gates used
- *  to read the STORED record — but the record freezes at the turn's
- *  write-ahead (persistTurn lands only at turn END), so a mid-turn
- *  conclude → pose pair could never see each other: every conclude
- *  succeeded against the stale record and every following pose died on
- *  "a problem is already active" until the model gave up ("the problem
- *  slot is stuck"). The gate seeds ONCE from the record at construction
- *  (one practiceTools per turn — chat-handler builds the agent per
- *  request, so there is no cross-turn leakage), and the executes flip
- *  this closure — the intra-turn truth the record cannot hold yet. */
-export interface PracticeGate {
+/** TURN-SCOPED GATE STATE: the gates used to read the STORED record */
+interface PracticeGate {
 	problemActive: boolean;
 }
 
-/** Seed the turn's gate from the record (result-aware activeProblemOf —
- *  only a cleanly-posed problem counts). */
-export function createPracticeGate(ctx: PracticeToolContext): PracticeGate {
+/** Seed the turn's gate from the record (result-aware activeProblemOf — only a cleanly-posed problem counts). */
+function createPracticeGate(ctx: PracticeToolContext): PracticeGate {
 	const record = ctx.chatStore.getChat(ctx.chatId);
 	return { problemActive: record ? activeProblemOf(record.messages) !== null : false };
 }
 
 // ─── problem: the pose ───────────────────────────────────────────────────────
 
-export const problemInputObject = Type.Object({
+const problemInputObject = Type.Object({
 	statement: Type.String({
 		description:
 			"REQUIRED — the problem as the learner sees it (markdown + LaTeX). Must be self-contained and " +
@@ -87,9 +56,8 @@ export const problemInputObject = Type.Object({
 	}),
 });
 
-export type ProblemInput = Static<typeof problemInputObject>;
 
-export function problemTool(
+function problemTool(
 	gate: PracticeGate,
 	graphNodes?: PracticeToolContext["graphNodes"],
 ): AgentTool<typeof problemInputObject> {
@@ -105,12 +73,7 @@ export function problemTool(
 		executionMode: "sequential",
 		prepareArguments: (args: unknown) => {
 			const healed = healEncodedArguments(args, problemInputObject);
-			// TARGET NORMALIZATION (owner round 9): names silently become ids —
-			// the RECORD carries canonical ids (the mastery trace groups on
-			// them); unresolvable strings pass through for execute to reject.
-			// UNTAGGED PROBLEMS (owner round 12): an explicit empty list is
-			// the model saying "no targets" — healed AWAY, so the record's
-			// canonical form is tagged-or-absent, never [].
+			// TARGET NORMALIZATION: names silently become ids — the RECORD carries canonical ids (the mastery trace groups on them)
 			if (!graphNodes) {
 				const bare = (healed as { target?: unknown }).target;
 				return Array.isArray(bare) && bare.length === 0
@@ -134,12 +97,7 @@ export function problemTool(
 					"a problem is already active — call conclude on it before posing the next one",
 				]);
 			}
-			// TARGET VALIDATION (owner round 9, round 12): against the WHOLE
-			// graph, and ONLY when targets are present — absent means an
-			// untagged problem (topic sessions, owner round 12), which poses
-			// freely. A one-line rejection — the proposition list already
-			// sits in the agent's context (the [id] marker); no re-listing.
-			// The message teaches the exit: omitting always works.
+			// TARGET VALIDATION: against the WHOLE graph, and ONLY when targets are present — absent means an untagged problem, which poses freely.
 			if (graphNodes && input.target && input.target.length > 0) {
 				const list = graphNodes();
 				const unknown = input.target.filter((t) => resolveTargetId(t, list) === null);
@@ -157,7 +115,7 @@ export function problemTool(
 
 // ─── conclude: the end of a problem ──────────────────────────────────────────
 
-export const concludeInputObject = Type.Object({
+const concludeInputObject = Type.Object({
 	outcome: Type.Union(
 		[
 			Type.Literal("solved"),
@@ -189,9 +147,8 @@ export const concludeInputObject = Type.Object({
 	retest: Type.Boolean({ description: "REQUIRED — true marks the problem for a fresh-surface retest before the session ends." }),
 });
 
-export type ConcludeInput = Static<typeof concludeInputObject>;
 
-export function concludeTool(gate: PracticeGate): AgentTool<typeof concludeInputObject> {
+function concludeTool(gate: PracticeGate): AgentTool<typeof concludeInputObject> {
 	return {
 		name: "conclude",
 		label: "conclude",
@@ -218,12 +175,7 @@ export function concludeTool(gate: PracticeGate): AgentTool<typeof concludeInput
 export function practiceTools(ctx: PracticeToolContext): Record<string, AgentTool<any>> {
 	// ONE gate per turn, shared by both tools — the intra-turn truth.
 	const gate = createPracticeGate(ctx);
-	// The map readers when the settings gate opened (file reading and
-	// research are the tutor Claude's own — docs/claude-code-bridge.md).
-	// healToolRecord (owner, 2026-10-09 — the whitehead generalization):
-	// the standard argument heal over the WHOLE registry. problem/conclude
-	// keep their own (target-normalizing) prepareArguments as the composed
-	// inner pass; the double heal is idempotent by construction.
+	// The map readers when the settings gate opened (file reading and research are the tutor Claude's own — docs/claude-code-bridge.md).
 	return healToolRecord({
 		problem: problemTool(gate, ctx.graphNodes),
 		conclude: concludeTool(gate),

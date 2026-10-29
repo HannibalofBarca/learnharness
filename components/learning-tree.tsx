@@ -1,17 +1,6 @@
 "use client";
 
-/**
- * The learning tree canvas (owner 2026-10-29) — the Planner page's map of
- * everything the learner studies (src/server/claude/learning-tree.ts).
- * Layered top-down like the lesson plan maps (the same dagre placement,
- * blockLayout); a topic shared across purviews is ONE box with an edge from
- * each parent. Read-only: the planner and the tutors change the tree; here
- * the learner pans, zooms, collapses branches, and opens sessions.
- *
- * Status colors the box (todo gray, learning yellow, done green; a group
- * shows its leaves' progress), kind shapes it (group bold, practice
- * dashed). Re-read every few seconds so the agents' edits appear live.
- */
+/** The learning tree canvas — the Planner page's map of everything the learner studies (src/server/claude/learning-tree.ts). */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -50,22 +39,23 @@ const edgeLine = line<{ x: number; y: number }>()
 
 // ─── pure helpers (exported for tests) ──────────────────────────────────────
 
-export function childMap(nodes: readonly TreeNode[]): Map<string, string[]> {
+function childMap(nodes: readonly TreeNode[]): Map<string, string[]> {
 	const out = new Map<string, string[]>();
 	for (const n of nodes) for (const p of n.parents) out.set(p, [...(out.get(p) ?? []), n.id]);
 	return out;
 }
 
-/** A group's status from the topics under it: done when every one is
- *  done, learning once any has started; other nodes carry their own. */
-export function shownStatus(nodes: readonly TreeNode[], id: string, children = childMap(nodes)): TreeStatus {
+/** A group's status from the topics under it: done when every one is done, learning once any has started; other nodes carry their own. */
+export function shownStatuses(nodes: readonly TreeNode[], children = childMap(nodes)): Map<string, TreeStatus> {
 	const byId = new Map(nodes.map((n) => [n.id, n] as const));
-	const node = byId.get(id);
-	if (!node || node.kind !== "group") return node?.status ?? "todo";
-	const leaves = [...descendants(id, children)].map((d) => byId.get(d)!).filter((n) => n && n.kind !== "group");
-	if (leaves.length === 0) return node.status;
-	if (leaves.every((n) => n.status === "done")) return "done";
-	return leaves.some((n) => n.status !== "todo") ? "learning" : "todo";
+	const status = (node: TreeNode): TreeStatus => {
+		if (node.kind !== "group") return node.status;
+		const leaves = [...descendants(node.id, children)].map((d) => byId.get(d)!).filter((n) => n.kind !== "group");
+		if (leaves.length === 0) return node.status;
+		if (leaves.every((n) => n.status === "done")) return "done";
+		return leaves.some((n) => n.status !== "todo") ? "learning" : "todo";
+	};
+	return new Map(nodes.map((n) => [n.id, status(n)] as const));
 }
 
 function descendants(id: string, children: Map<string, string[]>): Set<string> {
@@ -80,8 +70,7 @@ function descendants(id: string, children: Map<string, string[]>): Set<string> {
 	return out;
 }
 
-/** What shows with some branches collapsed: nodes reachable from a root
- *  without passing through a collapsed node, and the edges between them. */
+/** What shows with some branches collapsed: nodes reachable from a root without passing through a collapsed node, and the edges between them. */
 export function visibleTree(nodes: readonly TreeNode[], collapsed: ReadonlySet<string>) {
 	const children = childMap(nodes);
 	const shown = new Set<string>();
@@ -164,7 +153,7 @@ export function LearningTree() {
 				const hidden = collapsed.has(n.id) ? descendants(n.id, children).size : 0;
 				return { id: n.id, title: hidden ? `${n.title} (+${hidden})` : n.title };
 			});
-		const status = new Map(nodes.map((n) => [n.id, shownStatus(nodes, n.id, children)] as const));
+		const status = shownStatuses(nodes, children);
 		return { labelled, edges, status, children };
 	}, [nodes, collapsed]);
 	const layout = useMemo(() => blockLayout(view.labelled, view.edges), [view]);

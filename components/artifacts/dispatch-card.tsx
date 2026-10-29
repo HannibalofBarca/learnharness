@@ -7,18 +7,7 @@ import { ChatActionsContext } from "@/components/chat";
 import { isModelsRefusal, isProviderKeyRefusal, type JobKind, type JobRecord } from "@/src/core";
 import { BrailleSpinner } from "@/components/braille-spinner";
 
-/**
- * The dispatch card (contracts.ts "THE ASYNC PROTOCOL" §4): the tool-call
- * box for a background sub-agent. The tool part's output is the FIRE-AND-
- * FORGET ACK (a string) — never the result. Live status comes from the
- * chat-view jobs feed via JobsContext, matched by toolCallId:
- *
- *   job unknown → "dispatched" pulse (the jobs feed hasn't seen it yet)
- *   running     → live activity card (activity line + elapsed)
- *   done/error  → quiet one-liner ("finished" / "failed") — the artifact
- *                 itself arrives in the steer message right below, so the
- *                 box must not duplicate it.
- */
+/** The dispatch card (contracts.ts "THE ASYNC PROTOCOL" §4): the tool-call box for a background sub-agent. */
 const KIND_LABEL: Record<JobKind, string> = {
 	research: "Research agent",
 	demo: "Demo agent",
@@ -34,12 +23,7 @@ export function DispatchCard({ toolCallId, kind }: { toolCallId: string; kind: J
 	if (!job || job.status === "running") {
 		return <DispatchActivityCard job={job} label={label} />;
 	}
-	// BYOK (owner, 2026-09-22): a job refused for missing models is INFO,
-	// not scary-error — gray glyph + "needs model setup" + the deep-link
-	// into the SetupDialog (the same flow the send interception uses).
-	// The provider-key refusal twin (zero-keys wave): a pinned model
-	// whose key is gone reads as the key being needed — the deep-link
-	// lands on the SetupDialog's first-key stage on its own.
+	// BYOK: a job refused for missing models is INFO, not scary-error
 	if (isModelsRefusal(job.error)) {
 		return <DispatchRefusedCard label={label} line="needs model setup" button="Set up models" />;
 	}
@@ -85,8 +69,7 @@ function DispatchRefusedCard({ label, line, button }: { label: string; line: str
 }
 
 function DispatchActivityCard({ job, label }: { job: JobRecord | null; label: string }) {
-	// Elapsed from createdAt — jobs appear here only via the jobs feed (post-mount),
-	// so no SSR/hydration mismatch.
+	// Elapsed from createdAt — jobs appear here only via the jobs feed (post-mount), so no SSR/hydration mismatch.
 	const elapsed =
 		job && job.createdAt ? Math.max(0, Math.round((Date.now() - Date.parse(job.createdAt)) / 1000)) : null;
 	return (
@@ -95,10 +78,7 @@ function DispatchActivityCard({ job, label }: { job: JobRecord | null; label: st
 			data-testid="dispatch-card"
 		>
 			<div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-				{/* The working-state grammar (owner, streaming round 2026-10-01):
-				    the Braille spinner replaces the pulsing dot — one indicator
-				    everywhere. This is the ONLY dispatch-card change; the card's
-				    shape is untouched. */}
+				{/* The working-state grammar: the Braille spinner replaces the pulsing dot — one indicator everywhere. */}
 				<BrailleSpinner label={`${label} running`} />
 				{label}
 				{elapsed !== null && <span className="font-normal">· {elapsed}s</span>}

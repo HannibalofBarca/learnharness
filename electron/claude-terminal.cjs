@@ -1,15 +1,6 @@
 "use strict";
 
-/**
- * The embedded tutor terminal (docs/claude-code-bridge.md): one pty per
- * session, owned by the main process. Opening a session's terminal asks the
- * app's own server for the pre-wired Claude Code launch and runs it in the
- * user's shell; when Claude exits the shell stays. Output is kept as a
- * bounded scrollback so a window that comes back to the session replays it.
- *
- * The renderer only ever sends keystrokes and sizes for a session id; it
- * never chooses what runs.
- */
+/** The embedded tutor terminal (docs/claude-code-bridge.md): one pty per session, owned by the main process. */
 
 const pty = require("node-pty");
 

@@ -10,35 +10,17 @@ import { SidebarToggle } from "@/components/sidebar";
 import { StatsBar } from "@/components/stats-bar";
 import { ChainTableOverlay } from "@/components/chain-table.tsx";
 import { ComposerActions, NodePickerControl } from "@/components/composer-actions";
-import type { ChatSettings, GraphSnapshot } from "@/src/core";
+import type { GraphSnapshot } from "@/src/core";
 
-/** The draft's pick set (owner round 10): the SAME shape the home pick
- *  bar lifts — resolved nodes as the learner SAW them at pick time. */
-export type DraftPick = { id: string; name: string; statement: string };
+/** The draft's pick set: the SAME shape the home pick bar lifts — resolved nodes as the learner SAW them at pick time. */
+type DraftPick = { id: string; name: string; statement: string };
 
-/**
- * The sessionless draft view at /chat/new (owner, 2026-09-13): "+ New
- * session" opens THIS, never a created record — a session comes to exist
- * only when the learner sends the first message, and that message becomes
- * the session's title (the exact create-then-redirect contract the home
- * composer established). Visually identical to a fresh chat: same header
- * (title + probe chip), the same empty state, the same composer blob +
- * stats dock. The draft's model control binds the strong slot (the
- * new-session default); the created session is stamped from it
- * server-side (per-session models, owner 2026-09-28).
- */
+/** The sessionless draft view at /chat/new: "+ New session" opens THIS, never a created record */
 
 const DOCK = "mx-auto w-full max-w-[46rem] px-4";
 
-/**
- * The draft's whole behavior as one pure seam: create the session (title =
- * the first message), persist the lifted pre-chat settings, return the push
- * target — /chat/<id>?prompt=<msg> — whose initialPrompt path delivers the
- * message as turn 1. Injected fetch/router so tests pin the contract.
- * Returns null on empty text; rethrows on transport failure (the caller's
- * busy flag resets).
- */
-export async function startDraftSession(
+/** The draft's whole behavior as one pure seam: create the session (title = the first message), persist the lifted pre-chat settings */
+async function startDraftSession(
 	text: string,
 	fetchLike: typeof fetch,
 	mode?: "practice",
@@ -46,10 +28,7 @@ export async function startDraftSession(
 ): Promise<string | null> {
 	const t = text.trim();
 	if (!t) return null;
-	// THE PICKS RIDE THE CREATE (owner round 10): a practice draft seeded
-	// from the pick bar creates its session WITH the graph context — the
-	// same contract as the home screen's practice send (the marker with
-	// [id] name: statement lines, target validation's truth set).
+	// THE PICKS RIDE THE CREATE: a practice draft seeded from the pick bar creates its session WITH the graph context
 	const res = await fetchLike("/api/chats", {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
@@ -60,17 +39,13 @@ export async function startDraftSession(
 		),
 	});
 	const { id } = (await res.json()) as { id: string };
-	// No settings PUT on create (per-session models, owner 2026-09-28):
-	// the SERVER stamps the newborn from the strong slot.
+	// No settings PUT on create: the SERVER stamps the newborn from the strong slot.
 	return `/chat/${id}?prompt=${encodeURIComponent(t)}`;
 }
 
-/** The pure shell (no router) — the render-test seam: the draft view's
- *  visible surface, assembled from the same pieces a fresh chat shows. */
-/* FINISH-FIRST SEND + RUN-END FOCUS live in the shell (it owns the
- * dictation instance); the truth of the text stays in the parent, whose
- * send reads a REF mirror — see NewSession below. */
-export function DraftShell({
+/** The pure shell (no router) — the render-test seam: the draft view's visible surface, assembled from the same pieces a fresh chat shows. */
+/* FINISH-FIRST SEND + RUN-END FOCUS live in the shell (it owns the dictation instance); the truth of the text stays in the parent */
+function DraftShell({
 	busy,
 	text,
 	onChange,
@@ -86,33 +61,18 @@ export function DraftShell({
 	text: string;
 	onChange: (v: string) => void;
 	onSend: () => void;
-	/** The practice draft (owner, 2026-10-04): ?mode=practice — the
-	 *  created session carries kind:"practice" and the copy changes
-	 *  (the practice agent opens; no probing). */
+	/** The practice draft: ?mode=practice — the created session carries kind:"practice" and the copy changes (the practice agent opens; no probing). */
 	mode?: "teach" | "practice";
-	/** The first-run CTA (fix wave chunk B): the same "Set up your models"
-	 *  affordance home carries, rendered above the draft shell — passed by
-	 *  NewSession, which owns the configured state and the SetupDialog. */
+	/** The first-run CTA: the same "Set up your models" affordance home carries, rendered above the draft shell — passed by NewSession */
 	setupCta?: ReactNode;
-	/** THE PICK BAR (owner round 10): the SAME pill the home screen
-	 *  carries above its composer — dashed "Pick nodes" when empty,
-	 *  count + Clear when picked. The draft screen has
-	 *  no graph behind it, so the picker opens the standalone chain-table
-	 *  overlay over fetched snapshot data (owned by NewSession). */
+	/** THE PICK BAR: the SAME pill the home screen carries above its composer — dashed "Pick nodes" when empty, count + Clear when picked. */
 	picks?: DraftPick[];
 	onOpenPicker?: () => void;
 	onClearPicks?: () => void;
-	/** THE PICKER SLOT (owner round 10b): the chain-table overlay hosts
-	 *  INSIDE the content column's relative container — the same law as
-	 *  the graph view (the overlay fills its column, never the sidebar).
-	 *  Passed as a node so the pick state stays in NewSession. */
+	/** THE PICKER SLOT: the chain-table overlay hosts INSIDE the content column's relative container */
 	overlay?: ReactNode;
 }) {
-	// Voice dictation (STT wave, 2026-09-17): finals append at the end of the
-	// draft text (via the parent's onChange — the truth lives there); the
-	// strip lives in the stats bar's middle slot.
-	// Tab navigates INTO the composer (owner, keyboard round 2026-10-06):
-	// the only text field on this surface — the cycle's whole chain.
+	// Voice dictation: finals append at the end of the draft text (via the parent's onChange — the truth lives there)
 	const cycleComposer = useCallback((): readonly HTMLElement[] =>
 		Array.from(document.querySelectorAll<HTMLElement>('[data-testid="composer"] textarea')),
 		[]);
@@ -120,15 +80,9 @@ export function DraftShell({
 	const dictation = useDictation({
 		append: (t) => onChange(joinDictation(text, t)),
 	});
-	// A LIVE dictation keeps the composer sendable ("nothing gets lost"
-	// round, owner 2026-10-01): the spoken text is deferred in the run's
-	// buffer — Enter must reach the finish-first send, not be gated out by
-	// an empty textarea. Nothing said → the send no-ops.
+	// A LIVE dictation keeps the composer sendable: the spoken text is deferred in the run's buffer — Enter must reach the finish-first send
 	const canSend = text.trim().length > 0 || dictation.active;
-	/* FINISH DICTATION FIRST (owner, 2026-10-01): stop the run, let the
-	 * last finals land through onChange, THEN call the parent's send —
-	 * which reads its REF mirror, so the post-await timing of React's
-	 * re-render cannot eat the dictated tail. */
+	/* FINISH DICTATION FIRST: stop the run, let the last finals land through onChange, THEN call the parent's send — which reads its REF mirror */
 	const handleSend = () => {
 		if (dictation.active) {
 			void dictation.finish().then(onSend);
@@ -136,8 +90,7 @@ export function DraftShell({
 		}
 		onSend();
 	};
-	/* Run end focuses the composer (owner, 2026-10-01): the hands are on
-	 * the keyboard from the stop — falling edge of `active` only. */
+	/* Run end focuses the composer: the hands are on the keyboard from the stop — falling edge of `active` only. */
 	const composerInputRef = useRef<HTMLTextAreaElement>(null);
 	const dictationWasActiveRef = useRef(false);
 	useEffect(() => {
@@ -149,23 +102,13 @@ export function DraftShell({
 		}
 	}, [dictation.active]);
 	return (
-		/* CHROME-LESS CREATION SURFACE (owner round 11, 2026-10-05): the
-		 * drafts join home's register — no TopBar, no title (the serif title
-		 * always names a session; a draft has none). Home's proven pattern
-		 * verbatim: a drag mask first in the DOM, a floating reopen toggle
-		 * (the only pointer-events-auto spot), the empty state carrying the
-		 * orientation. The chain picker then owns the column top exactly
-		 * like the graph view's — no stacked bars. */
+		/* CHROME-LESS CREATION SURFACE: the drafts join home's register — no TopBar, no title (the serif title always names a session; a draft has none). */
 		<div className="relative flex h-dvh">
-			{/* Window-drag strip — deliberately FIRST in the DOM (the mask
-			    law: no-drag subtraction resolves by DOM order, so every
-			    carved control later in the tree subtracts correctly). */}
+			{/* Window-drag strip — deliberately FIRST in the DOM (the mask law: no-drag subtraction resolves by DOM order… */}
 			<div className="lh-drag absolute inset-x-0 top-0 h-13" aria-hidden="true" />
 			<div className="flex min-w-0 flex-1 flex-col">
 				<div className="relative flex min-h-0 flex-1">
-					{/* The pointer-events pattern (953b22b): the sticky wrapper is
-					    pointer-events-none so nothing here blocks the empty-state
-					    area; the blob and the stats row re-enable it themselves. */}
+					{/* The pointer-events pattern (953b22b): the sticky wrapper is pointer-events-none so nothing here blocks the empty-state area… */}
 					<div className="pointer-events-none sticky bottom-0 mt-auto w-full">
 						<Conversation className="h-full min-w-0 flex-1" initial="instant">
 							<ConversationContent className="min-h-full gap-0 p-0">
@@ -199,10 +142,7 @@ export function DraftShell({
 										inputRef={composerInputRef}
 										autoFocus
 										onEscape={dictation.active ? dictation.cancel : undefined}
-										// The opening question, same as the graph view's new-session
-										// input (owner refinement round, 2026-09-24) — no lesson has
-										// started yet, so the composer must not read like one is in
-										// flight.
+										// The opening question, same as the graph view's new-session input — no lesson has started yet, so the composer must not read like one is in flight.
 										placeholder={mode === "practice" ? "What do you want to practice?" : "What do you want to learn?"}
 									/>
 								</div>
@@ -216,9 +156,7 @@ export function DraftShell({
 					{overlay}
 				</div>
 			</div>
-			{/* The floating reopen toggle — pointer-events-none except the
-			    toggle itself (home's pattern), painted AFTER the overlay's
-			    column so nothing of it blocks the canvas area. */}
+			{/* The floating reopen toggle — pointer-events-none except the toggle itself (home's pattern)… */}
 			<header className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-2 px-3 py-2">
 				<div className="pointer-events-auto">
 					<SidebarToggle />
@@ -231,19 +169,14 @@ export function DraftShell({
 export function NewSession({ initialConfigured, mode = "teach" }: { initialConfigured: boolean; mode?: "teach" | "practice" }) {
 	const router = useRouter();
 	const [text, setText] = useState("");
-	/* The draft MIRROR ("nothing gets lost" round, 2026-10-01): the shell's
-	 * finish-first send calls THIS send after the dictation flush — which
-	 * landed via setState and may not have re-rendered yet. The send reads
-	 * the mirror; every write keeps it current. */
+	/* The draft MIRROR: the shell's finish-first send calls THIS send after the dictation flush */
 	const textRef = useRef("");
 	const applyText = (v: string) => {
 		textRef.current = v;
 		setText(v);
 	};
 	const [busy, setBusy] = useState(false);
-	// THE PICK BAR (owner round 10): the draft's lifted pick set + the
-	// snapshot the standalone chain-table picker reads. Lazy — the graph
-	// is fetched on FIRST open only, then reused.
+	// THE PICK BAR: the draft's lifted pick set + the snapshot the standalone chain-table picker reads.
 	const [picks, setPicks] = useState<DraftPick[]>([]);
 	const picksRef = useRef<DraftPick[]>([]);
 	const applyPicks = (next: DraftPick[]) => {
@@ -292,10 +225,7 @@ export function NewSession({ initialConfigured, mode = "teach" }: { initialConfi
 				onOpenPicker={openPicker}
 				onClearPicks={() => applyPicks([])}
 				overlay={
-					// THE PICKER (owner round 10b): hosted INSIDE the content
-					// column — absolute inset-0 resolves to the column's relative
-					// container, the same confinement the graph view gives it;
-					// never over the sidebar or the traffic lights.
+					// THE PICKER: hosted INSIDE the content column — absolute inset-0 resolves to the column's relative container
 					<ChainTableOverlay
 						open={pickerOpen}
 						nodes={snapshot?.propositions ?? []}

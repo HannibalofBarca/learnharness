@@ -1,13 +1,4 @@
-/**
- * The Planner (ClaudeHarness): a home-level Claude Code — the learner's own,
- * UNRESTRICTED (it is also their coding agent) — with LearnHarness planning
- * tools on top. It reads the learner's docs, writes learning plans, and
- * opens teaching sessions from them, at its and the learner's discretion.
- *
- * The plans are the learning tree (learning-tree.ts): the planner keeps its
- * trunk and major branches. The planner's MCP endpoint is
- * /api/mcp?chat=planner (same bridge token).
- */
+/** The Planner (ClaudeHarness): a home-level Claude Code — the learner's own, UNRESTRICTED (it is also their coding agent) */
 
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
@@ -57,7 +48,7 @@ Planning — the learning tree (shown as a canvas on the Planner page):
 - Their docs can also go into the knowledge graph (graph_import_notes, then the findings/links tools) if they want them connected to their learning history.
 - Talk with the learner right here in this terminal.`;
 
-export interface PlannerLaunch {
+interface PlannerLaunch {
 	cwd: string;
 	command: string;
 	resumeArgs?: string[];
@@ -86,8 +77,7 @@ export function plannerLaunch(origin: string): PlannerLaunch {
 		}, null, "\t"),
 		{ mode: 0o600 },
 	);
-	// Working directory: the app's source when running from it (so "mess
-	// with the app" works), otherwise the learner's home.
+	// Working directory: the app's source when running from it (so "mess with the app" works), otherwise the learner's home.
 	const source = fs.existsSync(path.join(ROOT, ".git")) ? ROOT : os.homedir();
 	const common = ["--mcp-config", mcpFile, "--settings", settingsFile, "--append-system-prompt-file", promptFile];
 	const existing = readPlannerSession();

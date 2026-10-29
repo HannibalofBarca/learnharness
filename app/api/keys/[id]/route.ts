@@ -1,20 +1,4 @@
-/**
- * PUT /api/keys/:id — save one key; DELETE — remove it (auth-keys wave,
- * 2026-09-19). `id` is the env-var/file key name (OPENROUTER_API_KEY, …).
- *
- * PUT body {value}: shape-gated (owner decision — bad pastes are 400s
- * naming the expected format, never stored; validation is SHAPE-ONLY, no
- * live pings). Saves take effect immediately (file + env reflected; no
- * restart). A var owned by the REAL env is persisted for later but NOT
- * reflected — the response's status row carries shadowedByEnv so the page
- * can explain why the saved key is not the live one.
- *
- * DELETE: gone from the file always; the env copy goes only when it was
- * the store's own reflection (a real env var stays — env wins). Idempotent
- * (absent key = success). Writable ids are the CURATED CATALOG ∪ THE
- * MODEL-PROVIDER env vars (provider-keys interlude); anything else is 404
- * — unknown file vars are preserved, not editable.
- */
+/** PUT /api/keys/:id — save one key; DELETE — remove it. */
 import { isWritableAuthKey } from "@/src/server";
 import { deleteKey, saveKey } from "@/src/server";
 

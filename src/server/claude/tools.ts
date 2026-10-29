@@ -1,17 +1,4 @@
-/**
- * The LearnHarness tools as Claude Code sees them (docs/claude-code-bridge.md).
- *
- * The tool DEFINITIONS are the app's own (src/agent/tools*): the prober,
- * teacher and practice registries, their TypeBox schemas, authoring
- * refinements and argument heals. This module adds what the old engine's
- * loop used to do around them — argument validation, the native message
- * shape (assistant toolCall + toolResult), and the question-stop rule —
- * and the bridge-only tools (wait_for_learner, resume_session, set_title).
- *
- * Claude Code lists tools once per launch, so the list is the union of a
- * session kind's phases; the phase is checked per call (a teacher tool
- * before probe_done is refused with a retryable error).
- */
+/** The LearnHarness tools as Claude Code sees them (docs/claude-code-bridge.md). */
 
 import { randomUUID } from "node:crypto";
 import { Type, type TSchema } from "typebox";
@@ -33,10 +20,9 @@ import { callDeliverTool, DELIVER_TOOLS } from "./deliver-tools.ts";
 import { callCodingTool, CODING_TOOLS } from "./coding.ts";
 import { callTreeTutorTool, outline, readTree, TREE_TUTOR_TOOLS } from "./learning-tree.ts";
 
-export type Phase = "prober" | "teacher" | "practice" | "code";
+type Phase = "prober" | "teacher" | "practice" | "code";
 
-/** Names Claude Code covers itself or the deliver tools replace — never
- *  listed even if a registry still carried them. */
+/** Names Claude Code covers itself or the deliver tools replace — never listed even if a registry still carried them. */
 const REPLACED = new Set(["read", "ls", "find", "grep", "research", "demo", "visual", "pdf"]);
 
 /** The wire result an MCP call returns. */
@@ -68,8 +54,7 @@ export function phaseTools(chatId: string, phase: Phase): Record<string, AgentTo
 			...strip(practiceTools({ chatId, chatStore: stores.chatStore, graphNodes: () => stores.graphStore.readNodes(), ...(graph ? { graph } : {}) })),
 		};
 	}
-	// Coding chats (owner 2026-10-29): a conversational helper — no probe,
-	// no plan, no quizzes; it asks the learner a question when it must.
+	// Coding chats: a conversational helper — no probe, no plan, no quizzes; it asks the learner a question when it must.
 	if (phase === "code") return { ...sendToUser, [askUserQuestionTool.name]: withArgumentHeal(askUserQuestionTool) };
 	const base = { chatId, chatStore: stores.chatStore };
 	if (phase === "prober") {
@@ -78,7 +63,7 @@ export function phaseTools(chatId: string, phase: Phase): Record<string, AgentTo
 	return { ...sendToUser, ...strip(createTeacherTools(base, effective.agent.tools)) };
 }
 
-export function phaseOf(record: ChatRecord): Phase {
+function phaseOf(record: ChatRecord): Phase {
 	if (record.kind === "practice") return "practice";
 	if (record.kind === "code") return "code";
 	return hasProbeDone(record.messages) ? "teacher" : "prober";
@@ -195,8 +180,7 @@ export function resumeText(record: ChatRecord): string {
 	return lines.join("\n");
 }
 
-/** A coding chat's workspace and the lesson it was opened from (its plan
- *  and recent history, shorter than this session's own). */
+/** A coding chat's workspace and the lesson it was opened from (its plan and recent history, shorter than this session's own). */
 function codingContext(record: ChatRecord): string[] {
 	const lines = [`Workspace: ${record.workspace ?? "(none)"}`];
 	const lesson = record.lessonChatId ? stores.chatStore.getChat(record.lessonChatId) : null;
@@ -289,8 +273,7 @@ async function runCall(session: ClaudeSession, chatId: string, name: string, raw
 	const isQuestion = (QUESTION_TOOLS as readonly string[]).includes(name);
 	agent.emit({ type: "tool_execution_end", toolCallId, toolName: name, result, isError } as never);
 	if (isQuestion && !isError) {
-		// The question-stop rule: the call persists WITHOUT a result; the turn
-		// settles; the learner's graded answer comes back as this call's result.
+		// The question-stop rule: the call persists WITHOUT a result; the turn settles; the learner's graded answer comes back as this call's result.
 		const answer = await block(session, "question", signal, toolCallId);
 		return { text: answer };
 	}

@@ -1,8 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 
-/** Per-launch desktop HTTP capability. This is not an OS-user malware
- * boundary and is not an OAuth credential. Browser-only mode is gated by
- * localBrowserAuthorized below instead. */
+/** Per-launch desktop HTTP capability. */
 export function desktopAPIAuthorized(
 	headers: Headers,
 	env: Record<string, string | undefined> = process.env,
@@ -19,18 +17,7 @@ export function desktopAPIAuthorized(
 
 const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
-/**
- * Browser-only mode (`npm run dev` / `npm start`, key hardening 2026-10-27):
- * no per-launch secret exists, so the gate is "addressed to this machine,
- * sent by the LearnHarness page itself".
- *   - Host must be loopback: defeats DNS rebinding (an attacker domain
- *     re-pointed at 127.0.0.1 still carries its own name in Host).
- *   - Browsers stamp Sec-Fetch-Site and Origin on cross-site requests and
- *     pages cannot forge them: anything not same-origin is refused, so a
- *     website open in another tab cannot drive the API.
- *   - No Origin and no Sec-Fetch-Site = a non-browser local client (curl,
- *     scripts) — allowed: such a process could read auth.json directly.
- */
+/** Browser-only mode: no per-launch secret exists, so the gate is "addressed to this machine, sent by the LearnHarness page itself". */
 export function localBrowserAuthorized(headers: Headers): boolean {
 	const host = headers.get("host");
 	if (!host) return false;

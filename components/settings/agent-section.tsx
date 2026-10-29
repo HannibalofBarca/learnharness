@@ -1,55 +1,5 @@
 "use client";
-/**
- * The Agent section (settings-app wave): the THREE MODEL SLOTS, the tool
- * toggles + the search-engine preference, and the prompt override
- * switches — three GROUPS (owner, 2026-09-20: clear separation — Models /
- * Tools / System prompts).
- *
- * Model slots (model-slots wave, 2026-09-20, owner ruling: SLOTS ONLY —
- * the six per-role rows disappeared; per-role overrides remain in the
- * schema for a future advanced surface): Strong = Prober + Teacher, Cheap
- * = the five workhorse roles, Vision = Visual maker + PDF reader. Each
- * slot row carries the shared dropdown (fuzzy search, arrow-walk, Enter
- * pick — ModelMenuList/ThinkingMenuList from ./model-menu.tsx) over the
- * FEDERATED catalog (/api/models serves only keyed providers, fresh per
- * call — saving a key in Keys immediately widens this picker). The
- * vision slot filters to image-capable models (Model.input). The slots
- * live in the `models` settings section (PUT /api/settings/models — slot
- * pins are engine-level, not per-chat); the rest of the section writes
- * the `agent` section as before. Resolution per tier: slot override →
- * factory pin (GET /api/models' `slots` — resolved, cannot drift from
- * what runs). The Default row clears the slot override; a stored id stays
- * VISIBLE even when its provider's key lapsed out of the catalog — a
- * trigger showing "Default" over a live override would lie about the
- * record.
- *
- * Search engine (search wave, 2026-09-20, owner: no default — an engine
- * is live iff its key is present; with a key the engine AUTO-activates,
- * the explicit choice is only a preference between live engines): a row
- * in the Tools group, Tavily / Brave via the same shared-menu look, with
- * the live reason line from /api/search. No engine key at all → the row
- * grays whole-row (a choice without a key would only BLOCK the other
- * engine's auto-activation).
- *
- * Tools — the owner's final list (2026-09-19): research, demo, visual, pdf.
- * Absent key = enabled in the schema; the UI writes explicit booleans for
- * all four (simpler to reason about, sanitize-equivalent).
- *
- * Prompts: GET /api/settings/prompts segments — THREE SECTIONS in the
- * owner's ruled order (2026-09-26 overhaul): Teacher first, Prober, then
- * Shared LAST. The server returns per-agent lists that each INCLUDE the
- * shared segments; sectionedSegments deduplicates them (shared chunks
- * once, in prompt-assembly order). The row rulings: only the TOGGLE
- * grays when there's no override file (the file name is always
- * full-contrast); NO description line when there's no override (the empty
- * state is clean — toggle + name); the indicator ("Your version is
- * saved") appears ONLY when an override exists. The switch requires an
- * override FILE (route-enforced), so a file-less toggle is disabled.
- * The segments view re-reads on the 'lh:settings-saved' signal for the
- * agent section — the view's enabled flags derive from the record's
- * switches, and the 2026-09-26 state-echo bug was exactly this reader
- * missing (the toggle painted its old state until a remount re-fetched).
- */
+/** The Agent section: the THREE MODEL SLOTS, the tool toggles + the search-engine preference, and the prompt override switches — three GROUPS. */
 
 import { useCallback, useEffect, useState } from "react";
 import { useSettingsSaved } from "@/components/settings-signal";
@@ -77,7 +27,7 @@ interface SegmentInfo {
  *  free-recall (explain in, quiz out); anything else is multiple choice.
  *  `quiz` itself is never written (mechanics-managed — see quizMechanics
  *  in agent/tools.ts). Pure — exported for tests. */
-export function composeQuizMechanics(agent: AgentSettings | undefined, mechanics: "choice" | "free"): AgentSettings {
+function composeQuizMechanics(agent: AgentSettings | undefined, mechanics: "choice" | "free"): AgentSettings {
 	return { ...agent, tools: { ...agent?.tools, explain: mechanics === "free" } };
 }
 
@@ -85,27 +35,20 @@ export function composeQuizMechanics(agent: AgentSettings | undefined, mechanics
  *  agent section — never in the tool-toggles map (owner ruling). Absent =
  *  ON (the toggle discipline); the write is explicit either way, so an
  *  explicit-off record stays visible as stored. Pure — exported for tests. */
-export function composeGraphTools(agent: AgentSettings | undefined, on: boolean): AgentSettings {
+function composeGraphTools(agent: AgentSettings | undefined, on: boolean): AgentSettings {
 	return { ...agent, graphTools: { enabled: on } };
 }
 
 
 
-/** The indicator under a row whose override IS the version in use (owner
- *  ruling, refined 2026-09-26: the small text states WHICH VERSION IS
- *  IN USE — "Your version is in use" when the switch is on, and NOTHING
- *  when the default composes, even if a saved override sits on disk
- *  unused. The switch's meaning becomes legible: it visibly controls
- *  this line). Exported for the pin. */
-export const PROMPT_IN_USE_HINT = "Your version is in use";
+/** The indicator under a row whose override IS the version in use. */
+const PROMPT_IN_USE_HINT = "Your version is in use";
 
-/** One section of the prompt view — the owner's ruled order: Teacher,
- *  Prober, then Shared last. */
-export interface PromptSection {
+/** One section of the prompt view. */
+interface PromptSection {
 	id: "teacher" | "prober" | "shared";
 	label: string;
-	/** The one header that earns a hint: "Shared" alone is not
-	 *  self-evident. Teacher/Prober are. */
+	/** The one header that earns a hint: "Shared" alone is not self-evident. */
 	hint?: string;
 	segments: SegmentInfo[];
 }
@@ -118,7 +61,7 @@ export interface PromptSection {
  *  agents' own chunks keep their lists' order — which IS the prompt
  *  assembly order (numeric-prefix filename sort). Pure — exported for
  *  tests. */
-export function sectionedSegments(view: { prober: SegmentInfo[]; teacher: SegmentInfo[] }): PromptSection[] {
+function sectionedSegments(view: { prober: SegmentInfo[]; teacher: SegmentInfo[] }): PromptSection[] {
 	const own = (who: "prober" | "teacher") => view[who].filter((s) => !s.shared);
 	return [
 		{ id: "teacher", label: "Teacher", segments: own("teacher") },
@@ -132,10 +75,8 @@ export function sectionedSegments(view: { prober: SegmentInfo[]; teacher: Segmen
 	];
 }
 
-/** Compose: one prompt switch. on = explicit true; off = key REMOVED
- *  (absent = off is the schema's resting state; explicit false is the
- *  same thing but noisier). Pure — tests. */
-export function composePromptSwitch(agent: AgentSettings | undefined, path: string, on: boolean): AgentSettings {
+/** Compose: one prompt switch. */
+function composePromptSwitch(agent: AgentSettings | undefined, path: string, on: boolean): AgentSettings {
 	const prompts = { ...agent?.prompts };
 	if (on) prompts[path] = true;
 	else delete prompts[path];
@@ -143,11 +84,7 @@ export function composePromptSwitch(agent: AgentSettings | undefined, path: stri
 }
 
 
-/* The section's dropdowns all mount the shared MenuShell (fix wave chunk
- * B): portaled to document.body, fixed-anchored to the open trigger by
- * testid (the section's one-ref pattern), opening DOWN with the shell's
- * viewport cap and auto-flip. data-lh-menu rides the shell — the
- * outside-click contract's exemption mark. */
+/* The section's dropdowns all mount the shared MenuShell: portaled to document.body */
 
 export function AgentSection({
 	agent,
@@ -155,9 +92,7 @@ export function AgentSection({
 	onSectionChange,
 }: {
 	agent: AgentSettings | undefined;
-	/** The `graph` section — READ ONLY here: the graphTools row composes its
-	 *  master switch (graph.enabled off dims + disables the row; the
-	 *  effective gate is server-side, per-turn fresh). */
+	/** The `graph` section — READ ONLY here: the graphTools row composes its master switch (graph.enabled off dims + disables the row */
 	graph: GraphSettings | undefined;
 	/** Writes the composed WHOLE agent section (replace-PUT discipline). */
 	onSectionChange: (next: AgentSettings) => void;
@@ -167,13 +102,7 @@ export function AgentSection({
 	const [segmentDraft, setSegmentDraft] = useState<Record<string, string>>({});
 	const [segmentStatus, setSegmentStatus] = useState<string | null>(null);
 
-	/** Re-read the prompt-segment view — the signal seam for the
-	 *  2026-09-26 state-echo fix: the view's `enabled` flags DERIVE from
-	 *  the settings record's agent switches (the toggle's truth lives
-	 *  here, not in the `agent` prop), so an agent-section write must
-	 *  re-read it or the toggle keeps painting its pre-write state until
-	 *  a remount. Keeps the last-good view on a failed re-read (the
-	 *  initial mount fetch below owns the loading/null state). */
+	/** Re-read the prompt-segment view — the signal seam for the 2026-09-26 state-echo fix */
 	const readPrompts = useCallback(() => {
 		fetch("/api/settings/prompts")
 			.then((r) => r.json())
@@ -182,8 +111,7 @@ export function AgentSection({
 	}, []);
 
 	useSettingsSaved((section) => {
-		// The prompt switches write through the agent section; this view (the
-		// toggles' truth) re-reads on every agent write.
+		// The prompt switches write through the agent section; this view (the toggles' truth) re-reads on every agent write.
 		if (section === "agent") readPrompts();
 	});
 
@@ -208,13 +136,7 @@ export function AgentSection({
 		}
 		readPrompts();
 		setSegmentStatus("Saved");
-		// Auto-on (owner ruling, refined 2026-09-26): writing an override and
-		// putting it to work are ONE action — a save with the switch off was
-		// the "did something, changed nothing" trap (the composed prompt
-		// stayed the default). The file exists now, so the ON switch the
-		// agent-section validation requires is legal; the order (file, then
-		// switch) is the safe one. Saving an edit while already on rides
-		// through — the switch write is idempotent at the record level.
+		// Auto-on: writing an override and putting it to work are ONE action — a save with the switch off was the "did something
 		if (agent?.prompts?.[path] !== true) {
 			onSectionChange(composePromptSwitch(agent, path, true));
 		}
@@ -227,11 +149,7 @@ export function AgentSection({
 			setSegmentStatus(`Delete failed: ${res.status}`);
 			return;
 		}
-		// Auto-off — the mirror of save's auto-on: deleting the file while
-		// the switch is on would orphan an ON record switch (the agent-section
-		// validation 400s every later write while the UI's toggle can no
-		// longer reach the OFF escape hatch — the trap found in live verify
-		// 2026-09-26). Composing the OFF here keeps the record clean.
+		// Auto-off — the mirror of save's auto-on: deleting the file while the switch is on would orphan an ON record switch.
 		if (agent?.prompts?.[path] === true) {
 			onSectionChange(composePromptSwitch(agent, path, false));
 		}
@@ -243,29 +161,18 @@ export function AgentSection({
 	const segmentRow = (info: SegmentInfo) => {
 		const fileExists = info.overrideText !== null;
 		const open = openSegment === info.path;
-		// The Save affordance (owner ruling, refined 2026-09-26): clickable
-		// only when there's something to save — the draft differs from
-		// what's on disk. An unchanged editor shows a grayed, inert Save
-		// (the always-active button was the "doesn't feel like it does
-		// anything" half of the report).
+		// The Save affordance: clickable only when there's something to save — the draft differs from what's on disk.
 		const draft = segmentDraft[info.path] ?? info.overrideText ?? "";
 		const dirty = draft !== (info.overrideText ?? "");
 		return (
 			<div key={info.path} data-testid={`prompt-segment-${info.path}`}>
 				<SettingsRow
 					label={info.path}
-					// Overhaul rulings (2026-09-26, refined): the small text
-					// states WHICH VERSION IS IN USE — nothing when the
-					// default composes (even with a saved override sitting
-					// on disk unused), "Your version is in use" when the
-					// switch is on. The switch's meaning becomes legible
-					// through this line.
+					// Overhaul rulings: the small text states WHICH VERSION IS IN USE
 					hint={info.enabled ? PROMPT_IN_USE_HINT : undefined}
 					testid={`prompt-row-${info.path}`}
 				>
-					{/* Graying ruling: ONLY the toggle dims without an
-					    override file — the file name above stays
-					    full-contrast (the whole-row dim is dead). */}
+					{/* Graying ruling: ONLY the toggle dims without an override file — the file name above stays full-contrast (the whole-row dim is dead). */}
 					<span className={fileExists ? undefined : "opacity-40"}>
 						<Toggle
 							checked={info.enabled}
@@ -328,12 +235,7 @@ export function AgentSection({
 									Delete
 								</button>
 							)}
-							{/* The quiet inline confirmation — next to the
-							    action, not the old path-echoing line at the
-							    section's bottom (production-copy: no file
-							    paths in user-facing status). One editor is
-							    open at a time (openSegment), so one shared
-							    status reads unambiguously. */}
+							{/* The quiet inline confirmation — next to the action, not the old path-echoing line at the section's bottom (production-copy… */}
 							{segmentStatus && (
 								<p className="text-xs text-muted-foreground/70" data-testid="segment-status">
 									{segmentStatus}
@@ -351,13 +253,7 @@ export function AgentSection({
 	return (
 		<>
 			<SettingsGroup label="Tools" testid="group-tools">
-				{/* The prober's graph tools (wave 7, owner ruling 2026-09-23):
-				    FIRST row of the group — its subject is the map, its
-				    mechanism is agent capability, so it lives in Tools but
-				    NOT in the tool-toggles list. Its own agent-section key
-				    (agent.graphTools), the search-row hint discipline: a
-				    smaller line under it explaining what it is — this
-				    connects prior sessions' knowledge into new ones. */}
+				{/* The prober's graph tools: FIRST row of the group — its subject is the map, its mechanism is agent capability… */}
 				{(() => {
 					const graphOn = graph?.enabled ?? true;
 					return (
@@ -376,10 +272,7 @@ export function AgentSection({
 						</SettingsRow>
 					);
 				})()}
-				{/* The quizzing mechanic (owner 2026-09-27): segmented — exactly one
-				    of Multiple choice / Free recall is active; the choice swaps which
-				    quizzing tool BOTH agents carry (prober checks + teach checks).
-				    Persisted as agent.tools.explain; absent = Multiple choice. */}
+				{/* The quizzing mechanic: segmented — exactly one of Multiple choice / Free recall is active… */}
 				{(() => {
 					const free = agent?.tools?.explain === true;
 					return (
@@ -423,10 +316,7 @@ export function AgentSection({
 					<p className="text-xs text-muted-foreground/70">Loading prompt segments…</p>
 				) : (
 					<div className="flex flex-col gap-4">
-						{/* The owner's ruled order (2026-09-26): Teacher first,
-						    then Prober, then Shared LAST — shared chunks once
-						    (deduplicated), each section in prompt-assembly
-						    order. */}
+						{/* The owner's ruled order: Teacher first, then Prober, then Shared LAST — shared chunks once (deduplicated), each section in prompt-assembly order. */}
 						{sectionedSegments(prompts).map((section) => (
 							<div key={section.id} data-testid={`prompt-section-${section.id}`}>
 								<p className="mb-1 text-xs uppercase tracking-widest text-muted-foreground/70">

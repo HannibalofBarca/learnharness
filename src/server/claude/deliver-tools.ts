@@ -1,17 +1,4 @@
-/**
- * The background jobs, done by the tutor Claude (docs/claude-code-bridge.md
- * §Background work): Claude researches, reads PDFs and authors demos and
- * figures itself, then hands the result over here. Delivery writes exactly
- * what a finished job used to leave in the session — the dispatch call
- * (research / pdf / demo / visual) with its ack, a done JobRecord, and the
- * subagent-steer marker carrying the artifact — so the existing cards
- * render it.
- *
- * Verification stays model-free: test_demo runs the HTML headlessly and
- * reports errors; preview_visual renders the SVG and returns the image for
- * Claude to look at. deliver_demo re-runs the test and refuses a failing
- * demo.
- */
+/** The background jobs, done by the tutor Claude (docs/claude-code-bridge.md §Background work): Claude researches */
 
 import { randomUUID } from "node:crypto";
 import { Type } from "typebox";

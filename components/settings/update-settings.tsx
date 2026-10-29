@@ -12,15 +12,13 @@ export type UpdateState = {
 	revision: number;
 };
 
-export const APP_VERSION = process.env.LH_VERSION ?? "";
+const APP_VERSION = process.env.LH_VERSION ?? "";
 const HOMEPAGE = process.env.LH_HOMEPAGE ?? "";
-export const MANUAL_UPDATE_HINT = "Checking downloads available updates. Downloaded updates install when you quit the app.";
-export const AUTO_UPDATE_HINT = "Check at startup and every 24 hours. Turning this off does not stop updates already in progress or ready to install.";
+const MANUAL_UPDATE_HINT = "Checking downloads available updates. Downloaded updates install when you quit the app.";
+const AUTO_UPDATE_HINT = "Check at startup and every 24 hours. Turning this off does not stop updates already in progress or ready to install.";
 const UPDATE_ERROR = "Couldn’t check for updates. Try again later.";
 
-/** Subscribe before requesting the snapshot. IPC replies and pushes can
- * cross; a revision prevents an older reply from hiding a newer event.
- * The banner shares this read-only observer so late loads recover too. */
+/** Subscribe before requesting the snapshot. */
 export function useUpdateState() {
 	const [state, setState] = useState<UpdateState | null>(null);
 	const [failed, setFailed] = useState(false);
@@ -44,7 +42,7 @@ export function useUpdateState() {
 	return { state, failed };
 }
 
-export function updateStatusText(state: UpdateState | null): string | null {
+function updateStatusText(state: UpdateState | null): string | null {
 	switch (state?.status) {
 		case "checking": return "Checking for updates…";
 		case "downloading": return state.version ? `Downloading version ${state.version}…` : "Downloading an update…";
@@ -55,8 +53,7 @@ export function updateStatusText(state: UpdateState | null): string | null {
 	}
 }
 
-/** Version information is useful everywhere; update controls only belong
- * to a shell with an available updater. Opening this row never checks. */
+/** Version information is useful everywhere; update controls only belong to a shell with an available updater. */
 export function UpdateSettings({
 	autoUpdate,
 	onAutoUpdateChange,

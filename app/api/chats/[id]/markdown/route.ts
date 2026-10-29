@@ -1,15 +1,4 @@
-/**
- * THE SESSION MARKDOWN EXPORT (owner, release polish 2026-10-06): the
- * user-facing export the session-markdown engine was built for — the
- * same document the extractor reads, minted anchorless (anchors are
- * extraction provenance; a learner's export carries no message ids).
- *
- * GET /api/chats/:id/markdown → the whole session as one markdown file
- * (Content-Disposition attachment; filename from the slugified title).
- * 404 unknown chat. Both session kinds export — practice sessions ride
- * the same engine (problem/conclude results render as tool blocks,
- * markers are invisible by the engine's law).
- */
+/** THE SESSION MARKDOWN EXPORT: the user-facing export the session-markdown engine was built for — the same document the extractor reads */
 import { sessionMarkdown } from "@/src/core";
 import { getChat } from "@/src/server";
 

@@ -1,37 +1,6 @@
 import type { AgentEvent } from "../../core/agent-types.ts";
 
-/**
- * TOOL-CALL ID UNIQUIFICATION (owner-approved fix, 2026-10-04 — the Lacan
- * incident): some providers (DeepSeek via OpenRouter, observed live) return
- * tool-call ids that reset every response — `call_0`, `call_1`, … — so a
- * one-call-per-turn session names EVERY call `call_0`. Everything in this
- * app keys on toolCallId (the view fold's call↔result join, the pending-
- * question gate, answer routing, the option-shuffle seed), so cross-turn
- * duplicates corrupted all of them at once: the fold applied the quiz
- * answer to the ASK card, the ask question vanished, the order scrambled.
- *
- * THE LAW: ids are uniquified ONCE, at the wire boundary — this class sits
- * inside runPiTurn, sees every AgentEvent before any view, and applies the
- * same minting at settlement. The client, the persisted record, the dock,
- * the answer flow, and the next turn's provider context (rebuilt from the
- * record) all see exactly one set of unique ids. Provider context stays
- * internally paired (call and result rewrite together), which the
- * OpenAI-compatible APIs accept — pi itself synthesizes ids for providers
- * that return none, so arbitrary-but-paired ids are already protocol-legal.
- * History is NEVER rewritten: record messages pass through untouched, and
- * pre-fix duplicate records heal at the fold (view.ts pairs results
- * newest-first).
- *
- * SCHEME: a per-chat seen-set (seeded from the record at turn start) plus
- * per-message tables. Streaming messages carry NO id (ids are stamped at
- * persist), so tables key by OBJECT IDENTITY — the message_end event's
- * object is reference-identical to the object in agent.state.messages
- * (verified against pi-agent-core), and a WeakMap joins the two. A fresh
- * table (epoch) opens at each assistant message_start; the update/end
- * objects of that message attach to it; mints claim once per message, so
- * the same id in a SECOND message of the turn (a retry step) gets its own
- * mint. Colliding ids become `${orig}~2`, `~3`, … skipping used ones.
- */
+/** TOOL-CALL ID UNIQUIFICATION: some providers (DeepSeek via OpenRouter, observed live) return tool-call ids that reset every response — `call_0` */
 
 /** Structurally walk any message's content for tool-call blocks. */
 function callBlocks(message: unknown): Array<{ id: string } & Record<string, unknown>> {
@@ -43,32 +12,12 @@ function callBlocks(message: unknown): Array<{ id: string } & Record<string, unk
 	);
 }
 
-/** The ids every consumer may already have seen: all call ids and result
- *  ids in a message list (the chat record — including its legacy dupes,
- *  which is the point: membership is what drives minting). */
-export function collectToolCallIds(messages: readonly unknown[]): string[] {
-	const ids: string[] = [];
-	for (const m of messages) {
-		const role = (m as { role?: string }).role;
-		if (role === "assistant") {
-			for (const b of callBlocks(m)) ids.push(b.id);
-		} else if (role === "toolResult") {
-			const id = (m as { toolCallId?: unknown }).toolCallId;
-			if (typeof id === "string") ids.push(id);
-		}
-	}
-	return ids;
-}
 
 export class ToolCallIdUniquifier {
 	private readonly seen = new Set<string>();
-	/** assistant message object → its (origId → uniqueId) table. Weak: the
-	 *  agent's turn dies at settle; nothing here outlives it. */
+	/** assistant message object → its (origId → uniqueId) table. */
 	private readonly tables = new WeakMap<object, Map<string, string>>();
-	/** The current assistant message's table — opened at its message_start,
-	 *  shared by its update/end objects, and the resolution scope for its
-	 *  tool_execution events (which fire after its message_end but before
-	 *  the next message_start). */
+	/** The current assistant message's table — opened at its message_start, shared by its update/end objects */
 	private epoch: Map<string, string> | null = null;
 
 	constructor(usedIds: Iterable<string>) {
@@ -90,17 +39,13 @@ export class ToolCallIdUniquifier {
 		}
 	}
 
-	/** Register + rewrite one message's tool-call blocks (idempotent across
-	 *  the repeated partials of message_update). Returns a cloned message
-	 *  when any id changed, else the original object. */
+	/** Register + rewrite one message's tool-call blocks (idempotent across the repeated partials of message_update). */
 	private remapMessageContent(message: unknown): unknown {
 		if ((message as { role?: string }).role !== "assistant") return message;
 		const blocks = callBlocks(message);
 		if (blocks.length === 0) return message;
 
-		// Attach to the current epoch unless this object already has a table
-		// (a re-emitted update/end). A message event with no open epoch
-		// (defensive: a stream that skips message_start) opens one.
+		// Attach to the current epoch unless this object already has a table (a re-emitted update/end).
 		let table = this.tables.get(message as object);
 		if (!table) {
 			table = this.epoch ?? new Map();
@@ -127,15 +72,12 @@ export class ToolCallIdUniquifier {
 		return changed ? { ...(message as object), content } : message;
 	}
 
-	/** Every AgentEvent, ids uniquified. Structural and total: unknown
-	 *  event shapes pass through untouched. */
+	/** Every AgentEvent, ids uniquified. */
 	event(event: AgentEvent): AgentEvent {
 		switch (event.type) {
 			case "message_start": {
 				const e = event as { message: { role?: string } };
-				// A new assistant message opens a fresh epoch — this is what
-				// keeps a retried id in a LATER message from reusing the
-				// earlier message's mint.
+				// A new assistant message opens a fresh epoch — this is what keeps a retried id in a LATER message from reusing the earlier message's mint.
 				if (e.message?.role === "assistant") this.epoch = new Map();
 				return this.remapEventMessage(event);
 			}
@@ -179,12 +121,7 @@ export class ToolCallIdUniquifier {
 		return { ...(event as object), message: remapped } as AgentEvent;
 	}
 
-	/** The settle seam: the agent's final state, rewritten to the ids the
-	 *  wire already showed. Only THIS turn's messages rewrite (the ones
-	 *  registered by their event objects); prior-turn history — including
-	 *  legacy duplicate-id records — passes through verbatim. Tool results
-	 *  pair with the most recent registered assistant message (the loop's
-	 *  own structure: results follow their calls). */
+	/** The settle seam: the agent's final state, rewritten to the ids the wire already showed. */
 	remapSettled(messages: readonly unknown[]): unknown[] {
 		let scope: Map<string, string> | undefined;
 		return messages.map((m) => {

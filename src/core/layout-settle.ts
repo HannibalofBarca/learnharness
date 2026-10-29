@@ -33,17 +33,9 @@ export function settleGraphLayout(graphStore: {
 	if (graph.nodes.length === 0) return;
 	const view = deriveView(graph);
 	const previous = new Map(Object.entries(graphStore.readPositions()));
-	// The cluster partition for the centroid pull: the SAME birth-session
-	// partition the snapshot renders (derived from provenance on read —
-	// core/session-clusters.ts, wave 7) — one cluster concept everywhere.
-	// PROPOSITIONS ONLY (owner, 2026-09-30): implication nodes never
-	// partition; the stored world clusters, its image follows.
+	// The cluster partition for the centroid pull: the SAME birth-session partition the snapshot renders — one cluster concept everywhere.
 	const communities = birthSessionPartition(graph.nodes);
-	// The SAME imp-node assignment the snapshot renders (majority among
-	// premises' births — core/session-clusters.ts): the resting ledger and
-	// the live sim must agree on where bundles belong, or the first live
-	// tick would fight the settle. Unfiltered here (settle pulls every
-	// community, hulls are a canvas-only concern).
+	// The SAME imp-node assignment the snapshot renders (majority among premises' births — core/session-clusters.ts)
 	attachImpToCommunities(communities, graph.nodes, graph.chains);
 	const next = incrementalLayout(view.nodes, view.edges, previous, {
 		clusters: communities,

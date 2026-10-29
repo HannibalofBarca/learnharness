@@ -1,10 +1,4 @@
-/**
- * The pre-wired Claude Code launch (docs/claude-code-bridge.md §Launch):
- * per chat, the server writes the method prompt, the session settings and
- * the MCP config under data/claude/<chatId>/ (the data dir is denied to the
- * tutor's Read, and these files carry the bridge token), and returns the
- * argv the desktop shell spawns in its terminal.
- */
+/** The pre-wired Claude Code launch (docs/claude-code-bridge.md §Launch): per chat, the server writes the method prompt */
 
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
@@ -18,9 +12,8 @@ import { listTools } from "./tools.ts";
 
 const CLAUDE_DIR = path.join(PATHS.data, "claude");
 const SESSION_MAP = path.join(CLAUDE_DIR, "sessions.json");
-/** Claude Code keys its transcripts by working directory: one stable,
- *  empty folder for every tutor session (no CLAUDE.md, no project files). */
-export const TUTOR_CWD = path.join(os.tmpdir(), "learnharness-tutor");
+/** Claude Code keys its transcripts by working directory: one stable, empty folder for every tutor session (no CLAUDE.md, no project files). */
+const TUTOR_CWD = path.join(os.tmpdir(), "learnharness-tutor");
 
 const BRIDGE_PREAMBLE = `# You are the LearnHarness tutor
 
@@ -39,7 +32,7 @@ How a session works:
 
 The method follows. It is the authority on how to teach.`;
 
-/** Coding chats (owner 2026-10-29): set the workspace up, then help on request. */
+/** Coding chats: set the workspace up, then help on request. */
 const CODING_PROMPT = `# You are the LearnHarness coding helper
 
 You are running inside LearnHarness, a learning app, in a coding chat opened from one of the learner's lessons. The learner does NOT read this terminal: they read and answer in the LearnHarness window, and they write their code in VS Code.
@@ -98,7 +91,7 @@ function rulePath(p: string): string {
 	return /^[A-Za-z]:\//.test(posix) ? `//${posix[0]!.toLowerCase()}${posix.slice(2)}` : `/${posix}`;
 }
 
-export interface ClaudeLaunch {
+interface ClaudeLaunch {
 	cwd: string;
 	command: string;
 	/** Resume the chat's Claude conversation (absent on first launch). */
@@ -107,8 +100,7 @@ export interface ClaudeLaunch {
 	freshArgs: string[];
 }
 
-/** Write the per-chat launch files and return the argv. `origin` is the
- *  server's own loopback origin (the MCP and hook URLs). */
+/** Write the per-chat launch files and return the argv. */
 export function claudeLaunch(chatId: string, origin: string): ClaudeLaunch | null {
 	const record = stores.chatStore.getChat(chatId);
 	if (!record) return null;
@@ -164,9 +156,7 @@ export function claudeLaunch(chatId: string, origin: string): ClaudeLaunch | nul
 
 	const lh = listTools(chatId).map((t) => `mcp__learnharness__${t.name}`);
 	const tools = ["Read", "Glob", "Grep", "WebSearch", "WebFetch", ...lh];
-	// Coding chats (owner 2026-10-29): run in the workspace with a shell and
-	// the VS Code link; edits are pre-approved inside the workspace only
-	// (Bash rules match commands, not paths — its cwd is the boundary).
+	// Coding chats: run in the workspace with a shell and the VS Code link; edits are pre-approved inside the workspace only (Bash rules match commands
 	const workspace = record.kind === "code" ? record.workspace : undefined;
 	if (workspace) fs.mkdirSync(workspace, { recursive: true });
 	const codeTools = workspace ? ["Bash", "PowerShell", "Edit", "Write", "NotebookEdit"] : [];
@@ -191,8 +181,7 @@ export function claudeLaunch(chatId: string, origin: string): ClaudeLaunch | nul
 	];
 	for (const drive of extraDrives()) common.push("--add-dir", drive);
 
-	// The conversation id is recorded by the Stop hook (the id Claude really
-	// used), so a launch that never got going leaves nothing to resume.
+	// The conversation id is recorded by the Stop hook (the id Claude really used), so a launch that never got going leaves nothing to resume.
 	const existing = readSessionMap()[chatId];
 	const kickoff = record.messages.length > 0
 		? "Begin: call resume_session, then continue the session in the LearnHarness window."
@@ -213,8 +202,7 @@ export function rememberClaudeSession(chatId: string, sessionId: string): void {
 	fs.writeFileSync(SESSION_MAP, JSON.stringify(map, null, "\t"), "utf-8");
 }
 
-/** Windows drive roots besides the home drive, so notes on any local drive
- *  are readable (Read stays denied for the data dir and secrets). */
+/** Windows drive roots besides the home drive, so notes on any local drive are readable (Read stays denied for the data dir and secrets). */
 function extraDrives(): string[] {
 	if (process.platform !== "win32") return [];
 	const home = path.parse(os.homedir()).root.toUpperCase();

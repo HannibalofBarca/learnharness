@@ -1,5 +1,4 @@
-// No Electron import: the shipping helper's readiness contract is testable
-// without a display. Never announce CDP until its exact loopback endpoint works.
+// No Electron import: the shipping helper's readiness contract is testable without a display.
 const http = require("node:http");
 
 /**

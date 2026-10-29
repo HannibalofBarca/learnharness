@@ -1,19 +1,4 @@
-/**
- * The chat-turn services — one named seam per turn
- * responsibility, extracted from the chat-handler so it composes instead of
- * implementing. Each takes its dependencies explicitly (storage ports, the
- * job runner) — no module here imports an adapter.
- *
- *   persistTurn        — the canonical state write (Wave B: native history;
- *                        id stamping, placeholder filtering, plan-block
- *                        emission, abort-partial persistence)
- *   triggerExtraction  — the graph write channel: fires the extraction
- *                        pipeline (the sole graph writer) once a chat
- *                        crosses the token-budget threshold.
- *
- * Logs are the minimal-observability baseline: one line per failure, tagged
- * [chat <id>] — structured logging lands behind these seams later.
- */
+/** The chat-turn services — one named seam per turn responsibility, extracted from the chat-handler so it composes instead of implementing. */
 
 import type { AgentMessage } from "../core/agent-types.ts";
 import type { ToolResultMessage } from "../core/agent-types.ts";
@@ -31,28 +16,7 @@ export class TurnPersistenceError extends Error {
 	}
 }
 
-/**
- * The canonical state write (Wave B, owner-approved 2026-09-26): append the
- * turn's own messages — the agent loop's native history, provider/model/
- * usage/thinkingSignature stamped by pi itself. Persists even when aborted
- * — the partial transcript (including a pending question's unanswered
- * call) is what makes resume work.
- *
- * - Id stamping: pi messages carry no id; the record's identity needs one
- *   per message (client keys, append-only adoption, the continuation
- *   seam). Minted here, at the single canonical write.
- * - Placeholder filtering: a cleanly-posed question's synthetic
- *   "question posed" result is an in-memory loop device (Wave A's
- *   terminate) — NEVER persisted (fork 1: the record ends at the
- *   unanswered call; the learner's answer arrives as the real tool
- *   result). Errored question calls DO persist — the model's retry
- *   context.
- * - Plan blocks: one frozen snapshot per successful plan_init call,
- *   idempotent (persist replays are safe).
- *
- * Returns the stamped new messages (usage provenance reads them). Throws
- * TurnPersistenceError on failure so the runner can report it before DONE.
- */
+/** The canonical state write: append the turn's own messages — the agent loop's native history */
 export function persistTurn(
 	chatStore: ChatStore,
 	chatId: string,

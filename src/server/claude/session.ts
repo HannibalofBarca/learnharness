@@ -1,21 +1,4 @@
-/**
- * The Claude Code bridge session (docs/claude-code-bridge.md): one per chat,
- * on globalThis (Next dev compiles each route as its own module instance —
- * the MCP route and POST /api/chat must share it; same discipline as
- * turn-runs.ts).
- *
- * It joins two lifecycles:
- * - Claude's side: MCP tool calls. Output tools stream into the CURRENT
- *   BridgeAgent (opening a turn when none runs); a blocking call (question
- *   tool, problem, wait_for_learner) parks in `blocked` and settles the turn.
- * - The learner's side: POST /api/chat inputs. Their model-facing text
- *   resolves the parked call, or waits in `inbox` for Claude's next
- *   wait_for_learner when Claude is busy or not running.
- *
- * BridgeAgent is the subset of a pi Agent that runPiTurn drives:
- * `state.messages`, `subscribe`, `continue()`, `abort()`. `continue()`
- * resolves when Claude blocks again (or the learner stops the turn).
- */
+/** The Claude Code bridge session (docs/claude-code-bridge.md): one per chat, on globalThis (Next dev compiles each route as its own module instance */
 
 import type { AgentEvent, AgentMessage } from "../../core/agent-types.ts";
 
@@ -41,8 +24,7 @@ export class BridgeAgent {
 		for (const listener of this.listeners) listener(event);
 	}
 
-	/** Append a settled message and stream it (start + end — no partials:
-	 *  a tool call arrives whole). */
+	/** Append a settled message and stream it (start + end — no partials: a tool call arrives whole). */
 	push(message: AgentMessage): void {
 		this.state.messages.push(message);
 		this.emit({ type: "message_start", message } as AgentEvent);
@@ -73,7 +55,7 @@ export class BridgeAgent {
 }
 
 /** What a parked MCP call is waiting for. */
-export type BlockedKind = "question" | "problem" | "wait";
+type BlockedKind = "question" | "problem" | "wait";
 
 interface Blocked {
 	kind: BlockedKind;
@@ -118,17 +100,14 @@ export function dropClaudeSession(chatId: string): void {
 	sessions().delete(chatId);
 }
 
-/** Run one Claude tool call after the previous one for this chat finished
- *  (parallel tool calls from Claude must not interleave turns). */
+/** Run one Claude tool call after the previous one for this chat finished (parallel tool calls from Claude must not interleave turns). */
 export function serialized<T>(session: ClaudeSession, run: () => Promise<T>): Promise<T> {
 	const next = session.queue.then(run, run);
 	session.queue = next.catch(() => undefined);
 	return next;
 }
 
-/** Park a blocking call: settles the running turn so the GUI shows the
- *  question / composer, then waits for the learner. Inbox text that is
- *  already waiting answers a wait_for_learner immediately. */
+/** Park a blocking call: settles the running turn so the GUI shows the question / composer, then waits for the learner. */
 export function block(session: ClaudeSession, kind: BlockedKind, signal: AbortSignal, toolCallId?: string): Promise<string> {
 	if (kind === "wait" && session.inbox.length > 0) {
 		const text = session.inbox.splice(0).join("\n\n");
@@ -154,8 +133,7 @@ export function block(session: ClaudeSession, kind: BlockedKind, signal: AbortSi
 	});
 }
 
-/** Deliver learner input. Returns true when a parked call took it (a turn
- *  should open: Claude is working again), false when it was queued. */
+/** Deliver learner input. */
 export function deliver(session: ClaudeSession, text: string): boolean {
 	const blocked = session.blocked;
 	if (!blocked) {

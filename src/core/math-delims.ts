@@ -1,5 +1,4 @@
-/** Shared Markdown/TeX boundaries for legacy delimiter compatibility and
- * display-only tool-content recovery. Source arguments are never rewritten. */
+/** Shared Markdown/TeX boundaries for legacy delimiter compatibility and display-only tool-content recovery. */
 import {
 	canParseTex, knownTexCommand, mapMathContent, numericPercentEscape, outsideTexComments,
 	readContentSpans, recoverDocumentLayout, texRanges,
@@ -10,9 +9,7 @@ const escaped = (text: string, i: number) => {
 	return n % 2 === 1;
 };
 
-/** Preserve the legacy list-continuation policy: indented display math
- * degrades to inline rather than disrupting list structure. Literal code
- * indentation is already protected by the shared reader. */
+/** Preserve the legacy list-continuation policy: indented display math degrades to inline rather than disrupting list structure. */
 function indented(text: string, i: number): boolean {
 	const prefix = text.slice(text.lastIndexOf("\n", i - 1) + 1, i);
 	return prefix.length > 0 && /^[ \t]+$/.test(prefix);
@@ -21,9 +18,7 @@ function blockPosition(text: string, i: number): boolean {
 	return /^[ \t]*$/.test(text.slice(text.lastIndexOf("\n", i - 1) + 1, i));
 }
 
-/** micromark closes native single-dollar spans at escaped dollars too.
- * Replace an intended literal dollar with equivalent dollar-free TeX before
- * tokenization. Code, prose, unbalanced spans and display dollars stay raw. */
+/** micromark closes native single-dollar spans at escaped dollars too. */
 function replaceEscapedDollars(content: string): string {
 	let out = "";
 	for (let i = 0; i < content.length; i++) {
@@ -34,8 +29,7 @@ function replaceEscapedDollars(content: string): string {
 	return out;
 }
 
-/** Read old \(...\)/\[...\] syntax without touching literal content or
- * reparsing native math as Markdown. Dollar authoring remains native. */
+/** Read old \(...\)/\[...\] syntax without touching literal content or reparsing native math as Markdown. */
 export function transformMathDelimiters(markdown: string): string {
 	let offset = 0;
 	return readContentSpans(markdown).map(span => {
@@ -58,13 +52,8 @@ const DEBRIS: Record<string, string> = {
 	"\b": "\\b", "\t": "\\t", "\v": "\\v", "\f": "\\f", "\r": "\\r",
 };
 
-/** Recover JSON-swallowed command prefixes only in recognized math, never
- * in code or genuine TeX comments. Restore all debris in one pass. Physical
- * display newlines and CRLF remain source whitespace. Inline LF recovery is
- * limited to complete known n-command names. Under the approved typical-
- * model-authoring policy this includes newline+u→nu in inline math only;
- * already-correct commands are never decoded into whitespace. */
-export function restoreMathEscapes(text: string): string {
+/** Recover JSON-swallowed command prefixes only in recognized math, never in code or genuine TeX comments. */
+function restoreMathEscapes(text: string): string {
 	if (!/[\b\t\n\v\f\r]/.test(text)) return text;
 	return mapMathContent(text, (body, display) => outsideTexComments(body, part => {
 		const restored = part.replace(/[\b\t\v\f\r]/g, (char, offset: number) => {
@@ -80,10 +69,7 @@ export function restoreMathEscapes(text: string): string {
 
 const commandSymbol = /[,;:!|{}%]/;
 
-/** Decode prefixes and row separators according to ORIGINAL TeX context.
- * A native pair is literal; an encoded pair supplies a factor, so an encoded
- * four-backslash row becomes TWO, never a command prefix. Unknown commands
- * without that structural evidence are left alone. */
+/** Decode prefixes and row separators according to ORIGINAL TeX context. */
 function recoverCommandRuns(inner: string, display: boolean): string {
 	const ranges = texRanges(inner);
 	const recovered = inner.replace(/\\+/g, (run: string, offset: number) => {
@@ -103,19 +89,16 @@ function recoverCommandRuns(inner: string, display: boolean): string {
 		if (word) return word.length > 1 && knownTexCommand(word) ? "\\" : run;
 		return next && commandSymbol.test(next) ? "\\" : run;
 	});
-	// Structural evidence is primary (parse success cannot prove row
-	// preservation). As an additional guard, never turn parseable source into
-	// a parse failure through partial command recovery.
+	// Structural evidence is primary (parse success cannot prove row preservation).
 	if (recovered !== inner && !canParseTex(recovered, display) && canParseTex(inner, display)) return inner;
 	return recovered;
 }
 
-export function healOverescapedCommands(text: string): string {
+function healOverescapedCommands(text: string): string {
 	return text.includes("\\\\") ? mapMathContent(text, recoverCommandRuns) : text;
 }
 
-/** Presentation-only, language-independent recovery. Shape parsing, saved
- * identities, grading and model history must use the unprojected source. */
+/** Presentation-only, language-independent recovery. */
 export function repairMathForDisplay(text: string): string {
 	return healOverescapedCommands(restoreMathEscapes(recoverDocumentLayout(text)));
 }

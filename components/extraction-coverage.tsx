@@ -9,29 +9,10 @@ import { Hint } from "@/components/ui/hint";
 import { timeAgo } from "@/components/sidebar";
 import { resolveSettings } from "@/src/core";
 
-/**
- * The extraction-coverage surfaces (extraction-UX redesign, owner-locked
- * dispatch 2026-09-24): the ring meter in the chat top bar and the coverage
- * block in the sidebar's session context menu — the two replacements for
- * the graph view's coverage panel (components/graph-coverage.tsx, retired
- * with this wave). Coverage is the SAME derivation, scoped to one session:
- * GET /api/chats/[id] now carries `coverage` (Platform's eed4b4e).
- *
- * The ring fills with uncoveredTokens / extractionChunkTokens — the chunk
- * budget the threshold setting (Graph ▸ extractionChunkTokens) pins: the
- * meter is "how close this session is to firing its next extraction run".
- * It DRAINS as a run folds (coverage re-derives per request), pulses while
- * a run is in flight, and vanishes entirely when the graph is off (the
- * master kill-switch means no extraction, so no meter).
- *
- * The manual affordance stays POST /api/graph/coverage/extract {chatId}
- * (409 = already running, BENIGN — the trigger raced us; the dock's
- * start-site nudge seam refreshes either way).
- */
+/** The extraction-coverage surfaces: the ring meter in the chat top bar and the coverage block in the sidebar's session context menu */
 
-/** Client-safe mirror of the server's SessionCoverage (src/server/chats.ts
- *  — the GET /api/chats/[id] `coverage` block). */
-export interface SessionCoverage {
+/** Client-safe mirror of the server's SessionCoverage (src/server/chats.ts — the GET /api/chats/[id] `coverage` block). */
+interface SessionCoverage {
 	totalMessages: number;
 	coveredCount: number;
 	uncoveredCount: number;
@@ -41,8 +22,7 @@ export interface SessionCoverage {
 	lastFoldedAt: string | null;
 }
 
-/** One session's coverage read — null on transport/404 (callers render
- *  nothing rather than a fake zero; the honest-render doctrine). */
+/** One session's coverage read — null on transport/404 (callers render nothing rather than a fake zero; the honest-render doctrine). */
 async function fetchCoverage(chatId: string): Promise<SessionCoverage | null> {
 	try {
 		const res = await fetch(`/api/chats/${encodeURIComponent(chatId)}`);
@@ -54,20 +34,14 @@ async function fetchCoverage(chatId: string): Promise<SessionCoverage | null> {
 	}
 }
 
-/** The ring's denominator + visibility, resolved through the SAME core
- *  resolver the server's effective settings use (fix, 2026-10-02): the
- *  meter denominates at exactly the number the extraction trigger waits
- *  for — the old hand-rolled `?? 4096` fallback drifted from the factory
- *  default (8192) and the ring filled at half the truth. Null on fetch
- *  failure → no ring. */
-export interface GraphRead {
+/** The ring's denominator + visibility, resolved through the SAME core resolver the server's effective settings use */
+interface GraphRead {
 	enabled: boolean;
 	chunkTokens: number;
 }
 
-/** Exported for the render pin (the ringFill precedent): resolves the
- *  raw settings delta to the factory-true graph section. */
-export async function fetchGraphRead(): Promise<GraphRead | null> {
+/** Exported for the render pin (the ringFill precedent): resolves the raw settings delta to the factory-true graph section. */
+async function fetchGraphRead(): Promise<GraphRead | null> {
 	try {
 		const res = await fetch("/api/settings");
 		if (!res.ok) return null;
@@ -79,10 +53,7 @@ export async function fetchGraphRead(): Promise<GraphRead | null> {
 	}
 }
 
-/** The manual-extract seam, shared by both surfaces. 409 is BENIGN (the
- *  run is already in flight) — returns "running" so the caller flips to the
- *  optimistic/running state instead of an error. Returns false only on a
- *  real failure, where the caller reverts. */
+/** The manual-extract seam, shared by both surfaces. */
 async function requestExtract(chatId: string): Promise<boolean> {
 	try {
 		const res = await fetch("/api/graph/coverage/extract", {
@@ -99,15 +70,7 @@ async function requestExtract(chatId: string): Promise<boolean> {
 
 // ─── The sidebar context menu's coverage block ──────────────────────────────
 
-/**
- * The info block at the bottom of the session context menu (owner-locked
- * redesign): what the extractor hasn't covered yet, plus the manual Extract
- * affordance — visually separated from Rename/Delete below (those stay the
- * two session-management actions). Fetched ON MENU OPEN (the block mounts
- * with the menu — on-demand, never eagerly), polled at 2s while a run is
- * in flight so the numbers settle live. No coverage (fetch failed, 404):
- * the whole block renders nothing — no fake zeros.
- */
+/** The info block at the bottom of the session context menu: what the extractor hasn't covered yet, plus the manual Extract affordance */
 export function CoverageMenuBlock({ chatId }: { chatId: string }) {
 	const refreshActivity = useActivity().refresh;
 	const [coverage, setCoverage] = useState<SessionCoverage | null>(null);
@@ -117,8 +80,7 @@ export function CoverageMenuBlock({ chatId }: { chatId: string }) {
 	const load = useCallback(async () => {
 		const next = await fetchCoverage(chatId);
 		if (next === null) return;
-		// The optimistic state stands down once the server says running, or
-		// once the fold moved coverage (the run finished).
+		// The optimistic state stands down once the server says running, or once the fold moved coverage (the run finished).
 		if (
 			next.running ||
 			(lastUncoveredRef.current !== null && next.uncoveredTokens !== lastUncoveredRef.current)
@@ -129,20 +91,14 @@ export function CoverageMenuBlock({ chatId }: { chatId: string }) {
 		setCoverage(next);
 	}, [chatId]);
 
-	// On MENU OPEN (the block mounts with the menu — on-demand, never
-	// eagerly): one read, then the 2s poll below takes over while running.
+	// On MENU OPEN (the block mounts with the menu — on-demand, never eagerly): one read, then the 2s poll below takes over while running.
 	useEffect(() => {
 		lastUncoveredRef.current = null;
 		setExtracting(false);
 		void load();
 	}, [load]);
 
-	// While a run is in flight the block polls at 2s (the old panel's
-	// open-only cadence, bounded to the running state) — the numbers
-	// settle live and the block ends in "fully extracted".
-	// ACCEPTED BY DESIGN (owner, 2026-10-02): the ring drains per fold,
-	// and the events channel is per phase — that granularity gap is why
-	// this bounded, run-scoped poll stays.
+	// While a run is in flight the block polls at 2s (the old panel's open-only cadence, bounded to the running state)
 	useEffect(() => {
 		if (coverage?.running !== true && !extracting) return;
 		const timer = setInterval(() => void load(), 2000);
@@ -153,9 +109,7 @@ export function CoverageMenuBlock({ chatId }: { chatId: string }) {
 
 	const onExtract = async () => {
 		setExtracting(true);
-		// The dock's start-site nudge (the 202 registers the run before the
-		// response; a 409 means one is already in flight) — refresh so the
-		// run surfaces at once either way.
+		// The dock's start-site nudge (the 202 registers the run before the response; a 409 means one is already in flight)
 		refreshActivity();
 		const started = await requestExtract(chatId);
 		if (!started) setExtracting(false);
@@ -173,7 +127,7 @@ export function CoverageMenuBlock({ chatId }: { chatId: string }) {
 /** The block's presentational core (exported for static-render tests):
  *  the numbers, the running pulse, and the Extract affordance with its
  *  optimistic "Running" state. */
-export function CoverageMenuBody({
+function CoverageMenuBody({
 	coverage,
 	extracting,
 	onExtract,
@@ -221,25 +175,12 @@ export function CoverageMenuBody({
 
 /** The donut's geometry (pure, exported for tests): the fill fraction
  *  uncovered/chunk, clamped to [0,1] — at 1 the next run fires. */
-export function ringFill(uncoveredTokens: number, chunkTokens: number): number {
+function ringFill(uncoveredTokens: number, chunkTokens: number): number {
 	if (!(chunkTokens > 0)) return 0;
 	return Math.min(1, Math.max(0, uncoveredTokens / chunkTokens));
 }
 
-/**
- * The ring meter (owner-locked: "a donut next to the PhaseChip"): how
- * close this session is to its next extraction run. Click → the exact
- * numbers (covered/uncovered tokens, messages, the threshold, the last
- * fold). Vanishes entirely while the graph is disabled or before the
- * first successful read. While a run is in flight the ring PULSES (the
- * implementer's visual call per the dispatch — motion is the honest
- * state signal in this app's quiet register; no new chrome).
- *
- * Refresh chains: mount + `refreshKey` (the chat view bumps it at turn
- * settle, riding the existing refetch chains) + a 2s poll while running
- * (resets as the fold drains coverage) + the settings signal (the
- * threshold/kill-switch re-read live).
- */
+/** The ring meter: how close this session is to its next extraction run. */
 export function CoverageRing({ chatId, refreshKey = 0 }: { chatId: string; refreshKey?: number }) {
 	const [graph, setGraph] = useState<GraphRead | null>(null);
 	const [coverage, setCoverage] = useState<SessionCoverage | null>(null);
@@ -248,11 +189,7 @@ export function CoverageRing({ chatId, refreshKey = 0 }: { chatId: string; refre
 	const rootRef = useRef<HTMLDivElement>(null);
 	usePopoverDismiss(rootRef, open, () => setOpen(false));
 
-	// The activity/refresh chain (the dispatch's seam): runs can fire from
-	// OTHER surfaces (the sidebar menu's Extract, the turn pipeline, another
-	// tab) — no turn-settle bump announces those to this page. The dock's
-	// feed knows; a run for THIS session appearing or settling in it
-	// re-reads coverage (same runs-empty-transition the graph view rides).
+	// The activity/refresh chain (the dispatch's seam): runs can fire from OTHER surfaces (the sidebar menu's Extract, the turn pipeline, another tab)
 	const feed = useActivity().feed;
 	const runHere = feed.extractions.some((run) => run.chatId === chatId);
 
@@ -276,12 +213,7 @@ export function CoverageRing({ chatId, refreshKey = 0 }: { chatId: string; refre
 		};
 	}, [chatId, refreshKey, nonce, runHere]);
 
-	// While a run is in flight: poll at 2s so the ring DRAINS as folds land
-	// and settles at zero when the run completes (the "resets on
-	// completion" requirement — coverage re-derives per request).
-	// ACCEPTED BY DESIGN (owner, 2026-10-02): the ring drains per fold,
-	// and the events channel is per phase — that granularity gap is why
-	// this bounded, run-scoped poll stays.
+	// While a run is in flight: poll at 2s so the ring DRAINS as folds land and settles at zero when the run completes (the "resets on completion"
 	useEffect(() => {
 		if (coverage?.running !== true) return;
 		const timer = setInterval(() => {
@@ -292,15 +224,14 @@ export function CoverageRing({ chatId, refreshKey = 0 }: { chatId: string; refre
 		return () => clearInterval(timer);
 	}, [chatId, coverage?.running]);
 
-	// Vanishes entirely when the graph is off, or before the first honest
-	// read (no fake zeros — the doctrine).
+	// Vanishes entirely when the graph is off, or before the first honest read (no fake zeros — the doctrine).
 	if (graph === null || !graph.enabled || coverage === null) return null;
 
 	const fill = ringFill(coverage.uncoveredTokens, graph.chunkTokens);
 	return (
 		<div ref={rootRef} className="lh-no-drag relative shrink-0">
 			<Hint
-				// Trimmed (owner, subtlety round 2026-09-25).
+				// Trimmed.
 				label="How much of this session isn't mapped yet"
 				side="bottom"
 			>
@@ -311,8 +242,7 @@ export function CoverageRing({ chatId, refreshKey = 0 }: { chatId: string; refre
 					aria-expanded={open}
 					className="relative flex size-5 cursor-pointer items-center justify-center transition-opacity hover:opacity-80"
 				>
-					{/* The donut: track + fill. The whole ring pulses while a run
-					    is in flight (motion = the working-state signal). */}
+					{/* The donut: track + fill. */}
 					<CoverageRingGlyph fill={fill} running={coverage.running} />
 				</button>
 			</Hint>
@@ -331,7 +261,7 @@ export function CoverageRing({ chatId, refreshKey = 0 }: { chatId: string; refre
 /** The donut itself (exported for static-render tests): a hairline track
  *  plus the fill arc — uncovered/chunk of the circumference, starting at
  *  12 o'clock. The whole ring pulses while a run is in flight. */
-export function CoverageRingGlyph({ fill, running }: { fill: number; running: boolean }) {
+function CoverageRingGlyph({ fill, running }: { fill: number; running: boolean }) {
 	const C = 2 * Math.PI * 6; // r=6 in the 16px viewBox
 	return (
 		<svg
@@ -358,7 +288,7 @@ export function CoverageRingGlyph({ fill, running }: { fill: number; running: bo
 /** The popover body (exported for static-render tests): the exact numbers —
  *  covered/uncovered tokens, message coverage, the threshold, the last
  *  fold's age. */
-export function CoverageRingDetail({ coverage, chunkTokens }: { coverage: SessionCoverage; chunkTokens: number }) {
+function CoverageRingDetail({ coverage, chunkTokens }: { coverage: SessionCoverage; chunkTokens: number }) {
 	return (
 		<>
 			<div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">

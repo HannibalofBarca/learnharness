@@ -3,13 +3,7 @@ import { newGraphContextMessage, type GraphContextPick } from "@/src/core";
 import { createChat, isTurnRunning, listChats, stores, titleFromPrompt } from "@/src/server";
 import type { ChatListItem } from "@/src/core";
 
-/** The session picker's list: record-derived summaries (phase, pending
- *  question) + live liveness — a running turn marks the session busy
- *  (contracts.ts ChatListItem; the store can't see liveness, the route is
- *  the merge point). Owner, minimal-color round: background jobs NO LONGER
- *  count — the sidebar's Background agents section is their channel now
- *  (a running spinner per row would double-signal them), so busy means
- *  exactly "a teach turn is in flight". */
+/** The session picker's list: record-derived summaries (phase, pending question) + live liveness */
 export async function GET() {
 	const chats: ChatListItem[] = listChats().map((c) => ({
 		...c,
@@ -22,16 +16,10 @@ export async function GET() {
 export async function POST(req: Request) {
 	const body = (await req.json().catch(() => ({}))) as { title?: unknown; kind?: unknown; graphContext?: unknown };
 	const title = typeof body.title === "string" ? body.title : "";
-	// Practice sessions (owner, 2026-10-04): kind "practice" marks the
-	// record — the practice method + its tools from turn 1, no extraction.
+	// Practice sessions: kind "practice" marks the record — the practice method + its tools from turn 1, no extraction.
 	const kind = body.kind === "practice" ? ("practice" as const) : undefined;
 	const chat = createChat(titleFromPrompt(title || "Untitled session"), kind);
-	// The session's map context (owner, 2026-10-04): the picked
-	// propositions ride the CREATION — message[0] is a graph-context
-	// marker (a separate custom message BEFORE the learner's first user
-	// message), carrying the picks plus the reasoning chains among them.
-	// The picks carry their own name/statement (what the learner saw at
-	// pick time); the chains derive from the CURRENT graph snapshot.
+	// The session's map context: the picked propositions ride the CREATION
 	const rawPicks = (body.graphContext as { propositions?: unknown } | undefined)?.propositions;
 	const picks: GraphContextPick[] = Array.isArray(rawPicks)
 		? rawPicks

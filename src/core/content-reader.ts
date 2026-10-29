@@ -1,11 +1,10 @@
-/** Source-preserving boundaries for tool-authored Markdown. Recovery never
- * mutates input, reserializes Markdown, or enters protected literal content. */
+/** Source-preserving boundaries for tool-authored Markdown. */
 import katex from "katex";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { mathFromMarkdown } from "mdast-util-math";
 import { math } from "micromark-extension-math";
 
-export type ContentSpan =
+type ContentSpan =
 	| { kind: "prose" | "code"; raw: string }
 	| { kind: "math"; raw: string; open: string; body: string; close: string; display: boolean };
 const blankLine = /^\r?\n[ \t]*\r?\n/;
@@ -15,9 +14,7 @@ const escaped = (text: string, i: number) => {
 };
 const runLength = (text: string, i: number, char: string) => { let n = 0; while (text[i + n] === char) n++; return n; };
 type MarkdownNode = { type: string; position?: { start: { offset?: number }; end: { offset?: number } }; children?: MarkdownNode[] };
-/** Use the rendering stack's actual CommonMark+math grammar for literal
- * ranges, including nested quotes/lists and implicit container endings.
- * Keep source offsets: never serialize the AST back into Markdown. */
+/** Use the rendering stack's actual CommonMark+math grammar for literal ranges, including nested quotes/lists and implicit container endings. */
 function literalRanges(text: string): Array<{ start: number; end: number }> {
 	const pending: MarkdownNode[] = [fromMarkdown(text, { extensions: [math({ singleDollarTextMath: true })], mdastExtensions: [mathFromMarkdown()] })];
 	const ranges: Array<{ start: number; end: number }> = [];
@@ -31,8 +28,7 @@ function literalRanges(text: string): Array<{ start: number; end: number }> {
 	return ranges.sort((a, b) => a.start - b.start);
 }
 
-/** Mirrors the app's native dollar-run and legacy-delimiter conventions,
- * with code and blank paragraphs as inline boundaries. */
+/** Mirrors the app's native dollar-run and legacy-delimiter conventions, with code and blank paragraphs as inline boundaries. */
 export function readContentSpans(text: string): ContentSpan[] {
 	const spans: ContentSpan[] = [];
 	const literals = literalRanges(text);
@@ -92,8 +88,7 @@ export function mapMathContent(text: string, transform: (body: string, display: 
 }
 
 const knownCommands = new Map<string, boolean>();
-/** Probe only a command name, never arbitrary content. Missing-argument errors
- * still identify a known command. No trust, macros, IO, or persistent TeX state. */
+/** Probe only a command name, never arbitrary content. */
 export function knownTexCommand(name: string): boolean {
 	if (!/^[A-Za-z]+$/.test(name)) return false;
 	const cached = knownCommands.get(name); if (cached !== undefined) return cached;
@@ -109,20 +104,17 @@ export function canParseTex(body: string, display: boolean): boolean {
 	catch { return false; }
 }
 
-export interface TexRange { start: number; end: number; kind: "row" | "encoded" | "comment"; factor?: number }
+interface TexRange { start: number; end: number; kind: "row" | "encoded" | "comment"; factor?: number }
 export function numericPercentEscape(inner: string, percent: number): boolean {
 	let start = percent; while (start > 0 && inner[start - 1] === "\\") start--;
 	if (percent - start < 2 || (percent - start) % 2 !== 0 || !/\d[ \t]*$/.test(inner.slice(0, start))) return false;
 	const tail = inner.slice(percent + 1);
-	// A final source-formatting LF before the closing fence is not a next
-	// equation row. A meaningful following line or comment text remains literal.
+	// A final source-formatting LF before the closing fence is not a next equation row.
 	if (/^[\s.)\]}]*$/.test(tail)) return true;
 	return !/[\r\n]/.test(tail) && !/^[ \t]*[A-Za-z]/.test(tail);
 }
 
-/** TeX boundaries shared by document decoding and command recovery. Native
- * rows are literal; consistently extra-escaped environment pairs supply an
- * explicit escaping factor for both commands AND row separators. */
+/** TeX boundaries shared by document decoding and command recovery. */
 export function texRanges(inner: string): TexRange[] {
 	const ranges: TexRange[] = [];
 	const stack: Array<{ name: string; start: number; factor: number }> = [];
@@ -151,8 +143,7 @@ export function texRanges(inner: string): TexRange[] {
 			}
 			i = end + marker[0].length; continue;
 		}
-		// KaTeX's substack macro expands its braced argument into subarray:
-		// these are row separators even without literal begin/end markers.
+		// KaTeX's substack macro expands its braced argument into subarray: these are row separators even without literal begin/end markers.
 		const substack = /^substack\s*\{/.exec(inner.slice(end));
 		if (substack) {
 			let depth = 1, j = end + substack[0].length;
@@ -175,8 +166,7 @@ export function outsideTexComments(body: string, transform: (part: string) => st
 	out.push(transform(body.slice(from))); return out.join("");
 }
 
-/** Document escapes are not arbitrary string decoding. Complete known TeX
- * words win over the prefix `\\n`; code is never inspected or rewritten. */
+/** Document escapes are not arbitrary string decoding. */
 export function recoverDocumentLayout(text: string): string {
 	const spans = readContentSpans(text);
 	const candidates = spans.filter(span => span.kind !== "code").map(span => span.raw).join("\u0000");
@@ -201,9 +191,7 @@ export function recoverDocumentLayout(text: string): string {
 	for (let i = 0; i < projected.length; i++) {
 		const { span, body } = projected[i]!;
 		if (span.kind !== "math") { out += body; continue; }
-		// Decoding document layout can expose a flow opener whose close was
-		// written on the formula line. Frame BOTH ends; otherwise Markdown
-		// consumes the closing dollars as TeX and introduces a rendering error.
+		// Decoding document layout can expose a flow opener whose close was written on the formula line.
 		if (/^\${2,}$/.test(span.open) && body !== span.body && body.includes("\n")) {
 			if (!/^[ \t]{0,3}$/.test(out.slice(out.lastIndexOf("\n") + 1))) out += "\n\n";
 			out += span.open + (body.startsWith("\n") ? "" : "\n") + body + (body.endsWith("\n") ? "" : "\n") + span.close;

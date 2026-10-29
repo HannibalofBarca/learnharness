@@ -1,23 +1,4 @@
-/**
- * Keyboard shortcuts (shortcut wave, 2026-09-17) — the single source of truth
- * for every app action that has a binding. This module is PURE (no React, no
- * window access at module scope beyond the guarded helpers) so it can render
- * a cheat sheet, match events, and — at the settings milestone — drive a
- * user-editable key map without touching any component.
- *
- * Design (owner-approved plan):
- * - Tab is DEAD: browser tab-focus navigation is abandoned entirely. Tab
- *   does nothing; Shift+Tab alone cycles the thinking level.
- * - Esc is a layered dismiss: topmost popover (each popover stopPropagation's
- *   its own Esc) → dictation stop → abort in-flight turn.
- * - The key map persists overrides in localStorage (`lh:keymap`, overrides
- *   only) merged over DEFAULT_BINDINGS — the settings wave adds the editor.
- *
- * Binding strings are normalized, cross-platform:
- *   "mod+d"    — mod = ⌘ on macOS, Ctrl elsewhere (both are accepted live)
- *   "shift+tab", "alt+arrowdown", "mod+shift+f", "?", "f2", "escape"
- * Order is fixed: mod, alt, shift, then the key.
- */
+/** Keyboard shortcuts — the single source of truth for every app action that has a binding. */
 
 export type KeyAction =
 	| "toggle-dictation"
@@ -38,19 +19,16 @@ export type KeyAction =
 	| "open-settings"
 	| "toggle-user-thinking";
 
-/** Where the cheat sheet groups an action (display only — dispatch is
- *  global; a seam that isn't mounted simply no-ops). */
+/** Where the cheat sheet groups an action (display only — dispatch is global; a seam that isn't mounted simply no-ops). */
 export type KeyScope = "global" | "chat" | "graph";
 
-export interface KeyActionDef {
+interface KeyActionDef {
 	id: KeyAction;
 	/** Cheat-sheet label. */
 	label: string;
 	scope: KeyScope;
 	binding: string;
-	/** Display-only (cheat sheet) — contextual keys a SURFACE owns (the
-	 *  question dock's row machine); never dispatched from the registry,
-	 *  so they can't leak to pages where the surface isn't mounted. */
+	/** Display-only (cheat sheet) — contextual keys a SURFACE owns (the question dock's row machine); never dispatched from the registry */
 	displayOnly?: boolean;
 }
 
@@ -61,26 +39,17 @@ export const KEYBOARD_ACTIONS: readonly KeyActionDef[] = [
 	{ id: "cycle-thinking", label: "Cycle thinking level", scope: "global", binding: "shift+tab" },
 	{ id: "toggle-sidebar", label: "Toggle sessions sidebar", scope: "global", binding: "mod+b" },
 	{ id: "sessions-search", label: "Search sessions", scope: "global", binding: "mod+shift+f" },
-	// (The Alt+↑/↓/↵ session cycle was RETIRED, owner 2026-10-10: barely
-	// used, felt laggy. Session navigation lives IN the search now — ↑/↓
-	// walk the filtered list, Enter opens (first match when nothing
-	// walked) — see sidebar.tsx's search input.)
+	// (The Alt+↑/↓/↵ session cycle was RETIRED, owner 2026-10-10: barely used, felt laggy.
 	{ id: "jump-graph", label: "Graph view", scope: "global", binding: "mod+g" },
 	{ id: "new-session", label: "New session", scope: "global", binding: "mod+n" },
 	{ id: "rename-session", label: "Rename session", scope: "chat", binding: "f2" },
 	{ id: "toggle-user-thinking", label: "Toggle all your thinking", scope: "chat", binding: "mod+t" },
-	// Mod+F is surface-scoped: graph node search and session text Find share
-	// one action/binding. Only the currently mounted surface listens.
+	// Mod+F is surface-scoped: graph node search and session text Find share one action/binding.
 	{ id: "find", label: "Find", scope: "global", binding: "mod+f" },
 	{ id: "cheat-sheet", label: "Shortcut cheat sheet", scope: "global", binding: "?" },
-	// The question dock's row machine (wave B) — displayOnly: the dock owns
-	// the keys while a question is expanded; the registry never dispatches
-	// them, so bare arrows stay free everywhere else.
+	// The question dock's row machine — displayOnly: the dock owns the keys while a question is expanded; the registry never dispatches them
 	{ id: "question-focus", label: "Question · focus thinking ↔ rows", scope: "chat", binding: "tab", displayOnly: true },
-	// (The model-menu entries — "walk results" ↑/↓, "pick result" ↵ — were
-	// REMOVED, owner 2026-10-10: obvious in-field menu navigation, never
-	// dispatched, never rebindable — not settings material. The menu's own
-	// arrow machine (menu-shell.tsx) is unchanged.)
+	// (The model-menu entries — "walk results" ↑/↓, "pick result" ↵— not settings material.
 	{ id: "question-next-row", label: "Question · next row", scope: "chat", binding: "arrowdown", displayOnly: true },
 	{ id: "question-prev-row", label: "Question · previous row", scope: "chat", binding: "arrowup", displayOnly: true },
 	{ id: "question-pick-row", label: "Question · pick row", scope: "chat", binding: "space", displayOnly: true },
@@ -89,9 +58,7 @@ export const KEYBOARD_ACTIONS: readonly KeyActionDef[] = [
 
 const STORAGE_KEY = "lh:keymap";
 
-/** localStorage overrides ({actionId: binding}) — read once per module
- *  instance; the settings editor will write this key. Guarded: SSR and a
- *  corrupt/absent store both fall back to defaults. */
+/** localStorage overrides ({actionId: binding}) — read once per module instance; the settings editor will write this key. */
 export function loadOverrides(): Partial<Record<KeyAction, string>> {
 	if (typeof window === "undefined") return {};
 	try {
@@ -105,9 +72,7 @@ export function loadOverrides(): Partial<Record<KeyAction, string>> {
 	return {};
 }
 
-/** Write the full overrides map ({actionId: binding}) — the settings
- *  editor's rebind/reset persistence. Guarded: SSR no-ops. An empty
- *  map clears the store entirely (all-defaults). */
+/** Write the full overrides map ({actionId: binding}) — the settings editor's rebind/reset persistence. */
 export function saveOverrides(overrides: Partial<Record<KeyAction, string>>): void {
 	if (typeof window === "undefined") return;
 	try {
@@ -119,7 +84,7 @@ export function saveOverrides(overrides: Partial<Record<KeyAction, string>>): vo
 }
 
 /** The live key map: defaults with user overrides applied. */
-export function effectiveKeymap(): Map<string, KeyAction> {
+function effectiveKeymap(): Map<string, KeyAction> {
 	const overrides = loadOverrides();
 	const map = new Map<string, KeyAction>();
 	for (const def of KEYBOARD_ACTIONS) {
@@ -143,17 +108,10 @@ export function bindingForAction(id: KeyAction): string {
 	return overrides[id] ?? def.binding;
 }
 
-/**
- * Normalize a KeyboardEvent to a canonical binding string. Rules:
- * - mod matches BOTH meta (⌘) and ctrl — Ctrl+K works on a Mac keyboard too.
- * - a printable key ("?") bakes its shift in: "shift+/?" collapses to "?".
- */
+/** Normalize a KeyboardEvent to a canonical binding string. */
 export function eventBinding(e: KeyboardEvent): string {
 	const mod = e.metaKey || e.ctrlKey;
-	// A bare printable key bakes its shift into the character ("?" not
-	// "shift+/"), so it returns alone. With a real modifier riding along,
-	// shift is explicit (⌘⇧F = "mod+shift+f"); non-printable keys (Tab,
-	// arrows) always keep their shift (Shift+Tab = "shift+tab").
+	// A bare printable key bakes its shift into the character ("?" not "shift+/"), so it returns alone.
 	if (e.key.length === 1 && !mod && !e.altKey) return e.key.toLowerCase();
 	const mods: string[] = [];
 	if (mod) mods.push("mod");
@@ -162,21 +120,12 @@ export function eventBinding(e: KeyboardEvent): string {
 	return [...mods, e.key.toLowerCase()].join("+");
 }
 
-/** The window event name a registry action dispatches/answers on —
- *  the ONE spelling shared by the dispatcher (keyboard-shortcuts) and
- *  every surface listener. Born from the ⌘B bug (owner interlude
- *  2026-09-25): the sidebar listened on the pre-convention name
- *  "lh:toggle-sidebar" while the dispatcher sent "lh:kbd-toggle-sidebar",
- *  so ⌘B silently did nothing. With both sides composing through this
- *  helper the mismatch is structurally impossible.
- */
+/** The window event name a registry action dispatches/answers on */
 export function kbdEventForAction(action: KeyAction): string {
 	return `lh:kbd-${action}`;
 }
 
-/** True when the event lands in a typing surface (input, textarea, or a
- *  contentEditable). In one, only mod/alt combos (and Tab, which types
- *  nothing) may fire — bare keys belong to the field (typing, caret). */
+/** True when the event lands in a typing surface (input, textarea, or a contentEditable). */
 export function isTypingSurface(e: KeyboardEvent): boolean {
 	const target = e.target as HTMLElement | null;
 	if (!target) return false;
@@ -186,7 +135,7 @@ export function isTypingSurface(e: KeyboardEvent): boolean {
 }
 
 /** macOS styling for binding display ("⌘D", "⇧⇥", "⌥↑"). */
-export const IS_MAC =
+const IS_MAC =
 	typeof navigator !== "undefined" && /mac/i.test(navigator.platform || navigator.userAgent);
 
 const MOD_GLYPH = IS_MAC ? "⌘" : "Ctrl+";

@@ -1,12 +1,4 @@
-/**
- * The native message and tool types the record format is written in.
- *
- * The record format grew up on the pi engine's types (pi-ai / pi-agent-core).
- * Under the Claude Code bridge (docs/claude-code-bridge.md) the engine is
- * gone, but every stored session still IS this shape — so the shapes live
- * here now, copied from those packages' published declarations (the parts
- * the app reads and writes), with no runtime behind them.
- */
+/** The native message and tool types the record format is written in. */
 
 import type { Static, TSchema } from "typebox";
 import type { LhMarkerMessage } from "./native-messages.ts";
@@ -66,8 +58,7 @@ export interface UserMessage {
 export interface AssistantMessage {
 	role: "assistant";
 	content: (TextContent | ThinkingContent | ToolCall)[];
-	/** Historical engine records name a provider API here; bridged records
-	 *  write "anthropic-messages" with provider "claude-code". */
+	/** Historical engine records name a provider API here; bridged records write "anthropic-messages" with provider "claude-code". */
 	api: string;
 	provider: string;
 	model: string;
@@ -94,11 +85,6 @@ export interface ToolResultMessage<TDetails = unknown> {
 	durationMs?: number;
 }
 
-export interface SystemMessage {
-	role: "system";
-	content: string | TextContent[];
-	timestamp: number;
-}
 
 /** A provider-facing conversation message. */
 export type Message = UserMessage | AssistantMessage | ToolResultMessage;
@@ -114,8 +100,7 @@ export interface AgentToolResult<T = unknown> {
 	terminate?: boolean;
 }
 
-/** A LearnHarness tool definition: TypeBox parameters, an optional argument
- *  heal that runs before validation, and the execute body. */
+/** A LearnHarness tool definition: TypeBox parameters, an optional argument heal that runs before validation, and the execute body. */
 export interface AgentTool<TParameters extends TSchema = TSchema, TDetails = any> {
 	name: string;
 	label: string;

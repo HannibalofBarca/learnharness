@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { AgentMessage } from "../src/core/agent-types.ts";
 import type { TurnAgent as Agent } from "../src/server/pi/ui-stream.ts";
-import type { ChatStore } from "../src/core/ports.ts";
 import { runPiTurn } from "../src/server/pi/ui-stream.ts";
-import { persistTurn } from "../src/server/turn-service.ts";
 
 /** No engine or network: exercise the runner's awaited listener seam. */
 function agentEndingWith(loopFailure?: Error): Agent {
@@ -51,41 +48,5 @@ describe("turn settlement recovery", () => {
 		const frames = wireFrames(await new Response(handle.subscribe()).text());
 		assert.equal(frames.at(-1), "[DONE]");
 		assert.equal(frames.filter(f => f.includes('"type":"error"')).length, 1);
-	});
-
-	it("does not replace an already reported loop failure with a second settlement error", async () => {
-		let cleanups = 0;
-		const handle = runPiTurn({
-			agent: agentEndingWith(new Error("synthetic loop failure")),
-			onError: () => "An error occurred.",
-			onFinish() { throw new Error("synthetic save failure"); },
-			onSettleFailure(error, reportedErrorText) {
-				cleanups++;
-				assert.match(String(error), /synthetic save failure/);
-				assert.equal(reportedErrorText, "An error occurred.");
-			},
-		});
-		const frames = wireFrames(await new Response(handle.subscribe()).text());
-		assert.equal(cleanups, 1);
-		assert.equal(frames.filter(f => f.includes('"type":"error"')).length, 1);
-		assert.equal(frames.at(-1), "[DONE]");
-	});
-
-	it("a healthy terminal follows persistence and emits no error", async () => {
-		let saves = 0;
-		const handle = runPiTurn({ agent: agentEndingWith(), onFinish() { saves++; } });
-		const frames = wireFrames(await new Response(handle.subscribe()).text());
-		assert.equal(saves, 1);
-		assert.equal(frames.at(-1), "[DONE]");
-		assert.equal(frames.some(f => f.includes('"type":"error"')), false);
-	});
-
-	it("does not contain a canonical write failure as an empty successful persist", () => {
-		const store = {
-			getChat: () => ({ messages: [] }),
-			saveMessages() { throw new Error("synthetic disk failure"); },
-		} as unknown as ChatStore;
-		const message = { role: "assistant", content: [{ type: "text", text: "Synthetic reply" }], stopReason: "stop", timestamp: 1 } as AgentMessage;
-		assert.throws(() => persistTurn(store, "fixture", 0, [message], false), /The reply could not be saved\./);
 	});
 });

@@ -1,17 +1,4 @@
-/**
- * The learning tree (owner 2026-10-29): one map of everything the learner
- * studies — Academia → focus areas → documents → branches → topics. The
- * Planner owns the trunk and major branches; a teaching session opened on
- * a branch grows its sub-branches and leaves and marks their progress.
- *
- * A topic exists ONCE: a node can have several parents (the same "Flow
- * matching" sits under Robot Learning, 6.S184 and World models), so the
- * structure is a DAG and progress is shared wherever the topic appears.
- * Adding a title that already exists links the existing node instead of
- * copying it.
- *
- * Plain JSON in data/tree/nodes.json; node order is the array order.
- */
+/** The learning tree: one map of everything the learner studies — Academia → focus areas → documents → branches → topics. */
 
 import fs from "node:fs";
 import path from "node:path";
@@ -24,10 +11,10 @@ import { validateArguments } from "../../agent/validate.ts";
 import { stores } from "../stores.ts";
 import type { BridgeResult, ListedTool } from "./tools.ts";
 
-export type TreeKind = "group" | "concept" | "practice";
-export type TreeStatus = "todo" | "learning" | "done";
+type TreeKind = "group" | "concept" | "practice";
+type TreeStatus = "todo" | "learning" | "done";
 
-export interface TreeNode {
+interface TreeNode {
 	id: string;
 	title: string;
 	/** group = a purview or branch; concept = taught; practice = coded or drilled. */
@@ -64,7 +51,7 @@ function writeTree(nodes: TreeNode[]): void {
 // ─── pure helpers ───────────────────────────────────────────────────────────
 
 /** The identity of a title: case, spacing and punctuation don't count. */
-export const titleKey = (title: string): string => title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const titleKey = (title: string): string => title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 function newId(nodes: readonly TreeNode[], title: string): string {
 	const base = titleKey(title).replace(/ /g, "-").slice(0, 48).replace(/-+$/, "") || "node";
@@ -75,11 +62,11 @@ function newId(nodes: readonly TreeNode[], title: string): string {
 }
 
 /** A node by id, else by title. */
-export function resolveNode(nodes: readonly TreeNode[], ref: string): TreeNode | undefined {
+function resolveNode(nodes: readonly TreeNode[], ref: string): TreeNode | undefined {
 	return nodes.find((n) => n.id === ref) ?? nodes.find((n) => titleKey(n.title) === titleKey(ref));
 }
 
-export function childrenOf(nodes: readonly TreeNode[], id: string): TreeNode[] {
+function childrenOf(nodes: readonly TreeNode[], id: string): TreeNode[] {
 	return nodes.filter((n) => n.parents.includes(id));
 }
 
@@ -112,8 +99,7 @@ export function pathTo(nodes: readonly TreeNode[], id: string): string {
 
 const GLYPH: Record<TreeStatus, string> = { todo: "[ ]", learning: "[~]", done: "[x]" };
 
-/** The tree as a compact outline (the agents' view). A shared node is
- *  written in full once; later appearances point back to it. */
+/** The tree as a compact outline (the agents' view). */
 export function outline(nodes: readonly TreeNode[], roots?: readonly string[]): string {
 	const seen = new Set<string>();
 	const lines: string[] = [];
@@ -140,7 +126,7 @@ export function outline(nodes: readonly TreeNode[], roots?: readonly string[]): 
 	return lines.length ? lines.join("\n") : "(empty tree)";
 }
 
-export interface UpsertInput {
+interface UpsertInput {
 	id?: string;
 	title: string;
 	kind?: TreeKind;
@@ -151,9 +137,7 @@ export interface UpsertInput {
 	note?: string;
 }
 
-/** Create or update nodes (in order — a parent may be created earlier in
- *  the same batch). A title that already exists updates that node.
- *  All-or-nothing: returns the new tree, or the errors. */
+/** Create or update nodes (in order — a parent may be created earlier in the same batch). */
 export function upsertNodes(prior: readonly TreeNode[], inputs: readonly UpsertInput[]): { nodes: TreeNode[]; changed: { id: string; created: boolean }[] } | { errors: string[] } {
 	const nodes = prior.map((n) => ({ ...n, parents: [...n.parents], sessions: [...n.sessions] }));
 	const errors: string[] = [];
@@ -191,8 +175,7 @@ export function upsertNodes(prior: readonly TreeNode[], inputs: readonly UpsertI
 	return errors.length ? { errors } : { nodes, changed };
 }
 
-/** Unlink a node from one parent, or delete it (its children stay; any
- *  left without a parent become roots). */
+/** Unlink a node from one parent, or delete it (its children stay; any left without a parent become roots). */
 export function removeNode(prior: readonly TreeNode[], id: string, parent?: string): { nodes: TreeNode[]; text: string } | { error: string } {
 	const node = prior.find((n) => n.id === id);
 	if (!node) return { error: `No node {${id}}.` };
@@ -208,8 +191,7 @@ export function removeNode(prior: readonly TreeNode[], id: string, parent?: stri
 
 // ─── sessions on the tree ───────────────────────────────────────────────────
 
-/** Open a new teaching session on a node: its first message carries the
- *  node's place in the tree and its branch as it stands. */
+/** Open a new teaching session on a node: its first message carries the node's place in the tree and its branch as it stands. */
 export function openBranchSession(id: string): { chatId: string } | { error: string } {
 	const nodes = readTree();
 	const node = nodes.find((n) => n.id === id);
@@ -243,8 +225,7 @@ export function attachWorkspace(id: string, chatId: string, workspace: string): 
 	return true;
 }
 
-/** The tree for the Planner page: sessions that no longer exist dropped,
- *  plus the live ones' titles and kinds. */
+/** The tree for the Planner page: sessions that no longer exist dropped, plus the live ones' titles and kinds. */
 export function treeView(): { nodes: TreeNode[]; sessions: Record<string, { title: string; kind: string }> } {
 	const chats = new Map(stores.chatStore.listChats().map((c) => [c.id, c] as const));
 	const nodes = readTree().map((n) => ({ ...n, sessions: n.sessions.filter((s) => chats.has(s)) }));

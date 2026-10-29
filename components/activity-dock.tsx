@@ -2,7 +2,6 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIcon, BotIcon, FileTextIcon, PenToolIcon, PlayIcon, SearchIcon, SquareIcon, WaypointsIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
 import type { CallUsage, JobKind, JobRecord } from "@/src/core";
 import { isModelsRefusal, isProviderKeyRefusal } from "@/src/core";
 import { formatTokens, planCostLabel } from "@/components/usage-format";
@@ -47,17 +46,16 @@ interface FeedUsage extends NonNullable<JobRecord["usage"]> {
 	lastStep?: CallUsage;
 }
 
-export interface FeedJob extends JobRecord {
+interface FeedJob extends JobRecord {
 	/** Read-time server estimate; absent on older transport payloads. */
 	costUsd?: number | null;
 	title: string;
 	usage?: FeedUsage;
-	/** Server-joined live catalog limit (owner amendment 2026-09-23) —
-	 *  null when the model is missing from pi's catalog (no context line). */
+	/** Server-joined live catalog limit — null when the model is missing from pi's catalog (no context line). */
 	contextLimit: number | null;
 }
 
-export interface FeedExtraction {
+interface FeedExtraction {
 	/** Unique row id (source id, or "src#i" for chunk jobs). */
 	id: string;
 	chatId: string;
@@ -67,7 +65,7 @@ export interface FeedExtraction {
 	startedAt: number;
 }
 
-export interface ActivityFeed {
+interface ActivityFeed {
 	jobs: FeedJob[];
 	extractions: FeedExtraction[];
 }
@@ -81,18 +79,7 @@ const ActivityContext = createContext<{ feed: ActivityFeed; refresh: () => void 
 	refresh: () => {},
 });
 
-/**
- * THE ACTIVITY FEED, PUSH-DRIVEN (architecture S5, 2026-10-02): the
- * adaptive poll is RETIRED — the dock refetches exactly when truth moves.
- * Every cause is announced on the events channel: extraction phase
- * transitions (activity-changed), job writes
- * (jobs-changed — the running-jobs blobs), and channel resync (reconnect /
- * dev-restart catch-up) — plus the one client-local cause that predates
- * the channel: visibility, a tab becoming visible refetches at once.
- * Announced fetches ride a 250ms trailing debounce (extraction phase
- * bursts); resync and visibility are immediate. A failed
- * fetch keeps the last feed (the dock never flickers to empty on a blip).
- */
+/** THE ACTIVITY FEED, PUSH-DRIVEN: the adaptive poll is RETIRED — the dock refetches exactly when truth moves. */
 export function ActivityProvider({ children }: { children: React.ReactNode }) {
 	const [feed, setFeed] = useState<ActivityFeed>(EMPTY_FEED);
 	const [nonce, setNonce] = useState(0);
@@ -133,8 +120,7 @@ export function ActivityProvider({ children }: { children: React.ReactNode }) {
 	// Reconnect catch-up: events missed while the channel was down.
 	useServerResync(() => refreshRef.current());
 
-	// The visibility nudge: returning to the tab refetches immediately —
-	// anything missed while hidden lands at once.
+	// The visibility nudge: returning to the tab refetches immediately — anything missed while hidden lands at once.
 	useEffect(() => {
 		const onVisibility = () => {
 			if (document.visibilityState === "visible") setNonce((n) => n + 1);
@@ -154,10 +140,7 @@ export function ActivityProvider({ children }: { children: React.ReactNode }) {
 	return <ActivityContext.Provider value={{ feed, refresh }}>{children}</ActivityContext.Provider>;
 }
 
-/** The activity feed seam for the rest of the shell: the dock's data +
- *  its refresh nudge. The remaining nudgers are client-visible causes
- *  (the extract/import buttons — extraction-coverage, graph-view); every
- *  server-side cause announces itself on the events channel now. */
+/** The activity feed seam for the rest of the shell: the dock's data + its refresh nudge. */
 export function useActivity(): { feed: ActivityFeed; refresh: () => void } {
 	return useContext(ActivityContext);
 }
@@ -165,9 +148,8 @@ export function useActivity(): { feed: ActivityFeed; refresh: () => void } {
 // ─── Pure presentation helpers (exported for tests) ──────────────────────────
 
 /** One dock blob: the unified view of a job or an extraction run. */
-export interface ActivityBlob {
-	/** job.id, or the extraction job's row id (source id, or "src#i" for
-	 *  chunk jobs — unique per row, per-chunk jobs owner 2026-09-28). */
+interface ActivityBlob {
+	/** job.id, or the extraction job's row id. */
 	id: string;
 	process: "job" | "extraction";
 	/** Sub-agent kind for jobs (extraction blobs have none). */
@@ -191,21 +173,15 @@ export interface ActivityBlob {
 }
 
 /** Merge the feed into one oldest-first blob list (the stable blob order). */
-export function toBlobs(feed: ActivityFeed): ActivityBlob[] {
+function toBlobs(feed: ActivityFeed): ActivityBlob[] {
 	const blobs: ActivityBlob[] = feed.jobs.map((job) => {
 		const usage = job.usage;
 		let context: ActivityBlob["context"] = null;
 		const lastStep = usage?.lastStep;
-		// Context-meter amendment (owner 2026-09-23): the limit comes off
-		// the FEED (server-joined from pi's live catalog) — no client-side
-		// table. Null limit = no context line (usage-only render is the
-		// blob shape's call — here the line simply hides).
+		// Context-meter amendment: the limit comes off the FEED (server-joined from pi's live catalog) — no client-side table.
 		const limit = job.contextLimit;
 		if (usage && lastStep && limit !== null && lastStep.inputTokens !== undefined) {
-			// Same metric as the session meter (four normalized buckets — the
-			// context-meter audit, owner 2026-09-23): all four directions.
-			// Provider "input" EXCLUDES cacheRead/cacheWrite, so input+output
-			// alone reads wildly low on cache-heavy jobs.
+			// Same metric as the session meter: all four directions.
 			context = {
 				used:
 					lastStep.inputTokens +
@@ -224,12 +200,7 @@ export function toBlobs(feed: ActivityFeed): ActivityBlob[] {
 			startedAt: Date.parse(job.createdAt) || 0,
 			cost: job.costUsd ?? null,
 			context,
-			// BYOK (owner, 2026-09-22): a refusal is info, not failure —
-			// the honest line the runner left ("failed") reads as setup
-			// needed, matching the dispatch card's quiet tone. The
-			// provider-key refusal twin (zero-keys wave, Platform's
-			// 66dbea9): a pinned model whose key is gone reads as the key
-			// being needed, same quiet tone.
+			// BYOK: a refusal is info, not failure — the honest line the runner left ("failed") reads as setup needed, matching the dispatch card's quiet tone.
 			activity: isModelsRefusal(job.error)
 				? "needs model setup"
 				: isProviderKeyRefusal(job.error)
@@ -257,7 +228,7 @@ export function toBlobs(feed: ActivityFeed): ActivityBlob[] {
 }
 
 /** Elapsed as a compact ticking string: 45s / 3m 04s / 1h 12m. */
-export function formatElapsed(ms: number): string {
+function formatElapsed(ms: number): string {
 	const s = Math.max(0, Math.floor(ms / 1000));
 	if (s < 60) return `${s}s`;
 	const m = Math.floor(s / 60);
@@ -314,14 +285,12 @@ export function ActivitySection({ feed: feedProp }: { feed?: ActivityFeed }) {
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
 					kind: blob.process,
-					// Extractions abort by SOURCE id (chatId) — chunk rows share one
-					// source and die together.
+					// Extractions abort by SOURCE id (chatId) — chunk rows share one source and die together.
 					id: blob.process === "extraction" ? blob.chatId : blob.id,
 				}),
 			});
 			if (!res.ok) {
-				// 404 not_found / 409 not_running: the process is already gone —
-				// the desired end state. Refresh and clear; nothing to report.
+				// 404 not_found / 409 not_running: the process is already gone — the desired end state.
 				if (res.status === 404 || res.status === 409) {
 					abortRef.current.refresh();
 					set((s) => {
@@ -338,11 +307,7 @@ export function ActivitySection({ feed: feedProp }: { feed?: ActivityFeed }) {
 		}
 	}, []);
 
-	// Sidebar-native skin (owner, sidebar round): part of the sidebar's
-	// surface, not a floating card — the border-t separator matches the
-	// sidebar's own edge line, the header matches the "Sessions" label, the
-	// rows match the session rows' hover. Empty means empty: the header sits
-	// alone (the cost span is population, not decoration).
+	// Sidebar-native skin: part of the sidebar's surface, not a floating card — the border-t separator matches the sidebar's own edge line
 	return (
 		<section data-testid="activity-section" className="border-t border-border px-3 pb-3 pt-2">
 			<div className="mb-1 flex items-center gap-1.5 text-xs uppercase tracking-widest text-muted-foreground/70">
@@ -429,9 +394,7 @@ function ActivityBlobRow({
 					<span data-testid="activity-blob-elapsed">{formatElapsed(now - blob.startedAt)}</span>
 				</span>
 			</button>
-			{/* The explicit END always on the blob's face (SCOPE) — the popover
-			    is for DETAIL, not the control. A failed abort locks the button and
-			    says why; a succeeded one just makes the blob vanish on refresh. */}
+			{/* The explicit END always on the blob's face (SCOPE) — the popover is for DETAIL, not the control. */}
 			<button
 				type="button"
 				data-testid="activity-abort"

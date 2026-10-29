@@ -1,11 +1,4 @@
-/**
- * Import the demo dependency graph from ONLY a standalone payload. With --browser,
- * also drive the packaged app's own --browser-service (never system Chrome).
- * No server, model, keys, installed app UI, or production diagnostic route needed.
- *
- * node scripts/smoke-demo-runtime.mjs --standalone <dir> --runtime <electron binary> [--browser]
- * --runtime defaults to host Node for the import-only gate.
- */
+/** Import the demo dependency graph from ONLY a standalone payload. */
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import * as fs from "node:fs";
@@ -30,8 +23,7 @@ export function probeEnv(env, home) {
 	};
 }
 
-// Keep fetch's nested cause (including AggregateError socket failures), but
-// never dump arbitrary error properties such as request headers or environment.
+// Keep fetch's nested cause (including AggregateError socket failures)
 export function formatProbeError(error, depth = 0) {
 	if (depth > 5) return "[cause chain truncated]";
 	if (!error || typeof error !== "object") return String(error);
@@ -98,9 +90,7 @@ async function importPayload(standalone) {
 	}
 }
 
-// Explicit IPC disconnect can omit ChildProcess 'close' even after Electron
-// exits. Wait for actual exit, boundedly; never infer shutdown intent from
-// Node's automatic stdin cleanup after an unexpected child exit.
+// Explicit IPC disconnect can omit ChildProcess 'close' even after Electron exits.
 /** @returns {Promise<{code: number | null, signal: NodeJS.Signals | null, requested: boolean}>} */
 export async function stopBrowserService(helper) {
 	if (!helper.pid || helper.exitCode !== null || helper.signalCode !== null) {

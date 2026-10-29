@@ -1,22 +1,6 @@
 import type { PlanEdge, PlanNode, PlanTree } from "./contracts.ts";
 
-/**
- * Pure, validated plan-tree operations (vision §2 "the formal plan tree").
- *
- * Every function takes a tree and returns a NEW tree — never mutates its
- * input. All validation throws PlanTreeError with a message written for the
- * agent (it flows straight back as a tool-result error), stating exactly what
- * is wrong and which id/edge is at fault.
- *
- * Invariants enforced everywhere:
- * - Node ids are unique and non-empty; every edge endpoint references an
- *   existing node.
- * - The structure is a DAG: no self-loops, no duplicate edges, no cycles.
- * - `version` increments on every successful STATE-CHANGING op. True no-ops
- *   (setCurrent to the already-current node, markDone of an already-done
- *   node) return the input tree unchanged — version drives UI re-animation,
- *   so a non-change must not tick it. createTree always starts at version 1.
- */
+/** Pure, validated plan-tree operations (vision §2 "the formal plan tree"). */
 
 /** Error thrown by every op on invalid input. Message is agent-readable. */
 export class PlanTreeError extends Error {
@@ -26,10 +10,6 @@ export class PlanTreeError extends Error {
 	}
 }
 
-/** An empty, never-stored tree used as the seed before plan_init runs. */
-export function emptyTree(): PlanTree {
-	return { nodes: [], edges: [], version: 0 };
-}
 
 // ─── validation helpers ──────────────────────────────────────────────────────
 
@@ -60,14 +40,8 @@ function requireNode(map: Map<string, PlanNode>, id: string, what: string): void
 	}
 }
 
-function edgeKey(from: string, to: string): string {
-	return `${from}\u0000${to}`;
-}
 
-/**
- * Would adding edge from→to create a cycle? Walk forward from `to` along
- * existing edges; if we can reach `from`, the new edge closes a loop.
- */
+/** Would adding edge from→to create a cycle? */
 function createsCycle(edges: PlanEdge[], from: string, to: string): boolean {
 	const adjacency = new Map<string, string[]>();
 	for (const e of edges) {
@@ -117,16 +91,11 @@ export function createTree(nodes: PlanNode[], edges: PlanEdge[]): PlanTree {
 	}
 	const accepted: PlanEdge[] = [];
 	for (const e of edges) {
-		// Each edge is checked against the ones already accepted, so any
-		// violation names the culprit edge.
+		// Each edge is checked against the ones already accepted, so any violation names the culprit edge.
 		assertValidEdge(e.from, e.to, nodes, accepted);
 		accepted.push({ from: e.from, to: e.to });
 	}
 	return { nodes: nodes.map((n) => ({ ...n })), edges: accepted, version: 1 };
 }
 
-// The per-node mutation ops (addNode/updateNode/removeNode/addEdge/removeEdge/
-// setCurrent/markDone) were deleted with the author-once protocol
-// (2026-09-03) and their dead exports removed with the 2026-09-11 pivot: the
-// tree carries structure ONLY — no progress fields exist to mutate
-// (docs/probe-teach-split.md §3). Restructuring is a plan_init rewrite.
+// The per-node mutation ops (addNode/updateNode/removeNode/addEdge/removeEdge/ setCurrent/markDone) were deleted with the author-once protocol and

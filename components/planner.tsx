@@ -1,12 +1,6 @@
 "use client";
 
-/**
- * The Planner page (ClaudeHarness): the learning tree canvas, and the
- * planner's Claude Code terminal underneath — the learner's own unrestricted
- * Claude Code with the LearnHarness planning tools
- * (src/server/claude/planner.ts). The canvas re-reads the tree every few
- * seconds, so what the planner and the tutors change appears on its own.
- */
+/** The Planner page (ClaudeHarness): the learning tree canvas, and the planner's Claude Code terminal underneath */
 
 import { ClaudeTerminal } from "@/components/claude-terminal";
 import { LearningTree } from "@/components/learning-tree";

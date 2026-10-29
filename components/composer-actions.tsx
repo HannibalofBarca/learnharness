@@ -3,8 +3,7 @@
 import type { ReactNode } from "react";
 import { DumbbellIcon } from "lucide-react";
 
-/** Home and the draft share one wrapping action row. Picker controls lead;
- * setup is centered only when it is the sole action. */
+/** Home and the draft share one wrapping action row. */
 export function ComposerActions({ picker, setup }: { picker?: ReactNode; setup?: ReactNode }) {
 	if (!picker && !setup) return null;
 	return (
@@ -18,8 +17,7 @@ export function ComposerActions({ picker, setup }: { picker?: ReactNode; setup?:
 	);
 }
 
-/** Count and Clear stay together if the setup action wraps onto another line.
- * These are node counts, even when a whole chain supplied the selection. */
+/** Count and Clear stay together if the setup action wraps onto another line. */
 export function NodePickerControl({ count, onOpen, onClear }: {
 	count: number;
 	onOpen?: () => void;

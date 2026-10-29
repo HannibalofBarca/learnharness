@@ -47,7 +47,7 @@ const COPY: Record<AbortMode, { title: string; line: string; action: string }> =
 
 /** The dialog's pure body — exported for SSR pins (the delete-node
  * pattern). The wrapper owns effects + the portal. */
-export function AbortTurnBody({
+function AbortTurnBody({
 	mode,
 	onClose,
 	onConfirm,
@@ -56,8 +56,7 @@ export function AbortTurnBody({
 	mode: AbortMode;
 	onClose: () => void;
 	onConfirm: () => void;
-	/** The dismiss doubles as the abort when a turn is still running
-	 * (owner, 2026-10-04): the line says so. */
+	/** The dismiss doubles as the abort when a turn is still running: the line says so. */
 	busy?: boolean;
 }) {
 	const backdropDismiss = useBackdropDismiss(onClose);

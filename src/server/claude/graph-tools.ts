@@ -1,19 +1,4 @@
-/**
- * The knowledge-graph tools (docs/claude-code-bridge.md §Background work):
- * the tutor Claude plays the old extractor and auditor; everything else is
- * the app's own deterministic pipeline — the teacher-prose view, coverage
- * batching, the submit validators, the merger, the layout settle.
- *
- *   graph_extract_next        → the next uncovered stretch of THIS session
- *   graph_import_notes {path} → the first chunk of a notes file
- *   graph_submit_findings / graph_submit_notes_findings → validated findings
- *   graph_submit_links        → identity verdicts → merge → next stretch
- *   graph_find / graph_list_sessions / graph_list_propositions → the
- *     auditor's read-only view of the graph
- *
- * One pending extraction per chat (globalThis — the MCP route's module
- * instance must see it across calls). These tools never open a lesson turn.
- */
+/** The knowledge-graph tools (docs/claude-code-bridge.md §Background work): the tutor Claude plays the old extractor and auditor */
 
 import * as crypto from "node:crypto";
 import fs from "node:fs";
@@ -75,8 +60,7 @@ function pendingMap(): Map<string, Pending> {
 
 const notesFindingsSchema = findingsSchema;
 
-/** Notes uploaded through the import dialog wait here for the tutor
- *  (POST /api/graph/import; graph_import_notes with no path takes the oldest). */
+/** Notes uploaded through the import dialog wait here for the tutor (POST /api/graph/import; graph_import_notes with no path takes the oldest). */
 const NOTES_QUEUE = path.join(PATHS.data, "claude", "notes-queue");
 
 export function queueNotes(fileName: string, text: string): void {

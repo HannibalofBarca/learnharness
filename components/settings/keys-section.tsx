@@ -1,15 +1,6 @@
 "use client";
 
-/**
- * The Keys section: the service keys the app itself still calls. Under the
- * Claude Code bridge (docs/claude-code-bridge.md) the tutor's model is the
- * learner's own Claude Code — no model-provider keys or logins live here.
- * What remains is dictation's Deepgram key.
- *
- * API: GET /api/keys (masked statuses — plaintext never leaves the server),
- * PUT /api/keys/:id {value} (shape-checked, 400 with the reason), DELETE.
- * A key set in the environment shadows the saved one; the row says so.
- */
+/** The Keys section: the service keys the app itself still calls. */
 
 import { useEffect, useState } from "react";
 import type { AuthKeyStatus } from "@/src/core";

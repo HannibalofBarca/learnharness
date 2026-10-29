@@ -9,19 +9,10 @@ import { ToolContentResponse } from "@/components/ai-elements/message";
 import type { QuestionAnswerData } from "@/src/core";
 import { answerForPresentation, parseAskInput, parseQuizInput } from "@/src/core";
 
-/**
- * Static rendering of an answered question (tool part in `output-available`).
- *
- * Quiz answers are GRADED: ✓/✗ marks, the correct answers, and the
- * explanation. Ask answers are NOT graded — a plain record of what was said.
- * (The v1 bug this pins: ask answers must never get quiz grading UI.)
- * Explain answers are graded by the MODEL in its next reply, not by the
- * client — the card reveals his answer, the committed correct answer, and
- * the explanation, with NO verdict chips (owner ruling 2026-09-27).
- */
+/** Static rendering of an answered question (tool part in `output-available`). */
 export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionAnswerData; input?: unknown }) {
 	const answer = answerForPresentation(savedAnswer, input);
-	const [whyOpen, setWhyOpen] = useState(false); // the tucked explanation (predictions, owner 2026-10-03)
+	const [whyOpen, setWhyOpen] = useState(false); // the tucked explanation
 	if (answer.dismissed) {
 		return (
 			<div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
@@ -34,38 +25,24 @@ export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionA
 	const isExplain = answer.kind === "explain";
 	const selectedIdx = new Set(answer.answers.map((a) => a.index));
 	const correctIdx = new Set(answer.correctIndices ?? []);
-	// The question's own context rides the ORIGINAL CALL, not the answer
-	// snapshot (owner, 2026-10-12): the details line — and, for ask
-	// questions, option descriptions — re-render from the persisted
-	// arguments, so every existing transcript shows them too. The lean
-	// snapshot (what the model sees, compactAnswerForModel) is untouched;
-	// any parse failure or absent input renders exactly the older card.
+	// The question's own context rides the ORIGINAL CALL, not the answer snapshot: the details line — and, for ask questions, option descriptions
 	const askInput = answer.kind === "ask" ? parseAskInput(input) : undefined;
 	const parsedDetails = askInput?.details ?? (answer.kind === "quiz" ? parseQuizInput(input)?.details : undefined);
 	const descByIndex = new Map((askInput?.options ?? []).map((o, i) => [i + 1, o.description]));
 
 	return (
 		<>
-		{/* The reading channel LIFTED (owner round, 2026-10-05): thoughts
-		    captured while reading are chronologically PRIOR to the question —
-		    rendered as its own user-side block ABOVE the card, the unified
-		    ThinkingBlock, instead of an inset inside the answer. Same muted
-		    rail as before; the label is now plain "Your thinking". */}
+		{/* The reading channel LIFTED: thoughts captured while reading are chronologically PRIOR to the question… */}
 		{answer.readingThinking && (
 			<ThinkingBlock testId="reading-thinking-block" label="YOUR THINKING" text={answer.readingThinking} defaultOpen />
 		)}
-		{/* [&>*:last-child]:mb-0 (owner round, 2026-10-07): on ask cards the
-		    thinking row is the last child — its my-3 stacked with the card's
-		    p-4 into a 28px void below (12px above); the card's own padding is
-		    the bottom rhythm when a row ends the card. */}
+		{/* [&>*:last-child]:mb-0: on ask cards the thinking row is the last child — its my-3 stacked with the card's p-4 into a 28px void below (12px above)… */}
 		<div
 			className="rounded-xl border bg-card p-4 text-card-foreground [&>*:last-child]:mb-0"
 			data-testid="answered-card"
 		>
 			<div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-				{/* The tool's OWN name first (owner 2026-10-09): probe-phase
-			    cards label Probe/Recall — the phase boundary visible in the
-			    transcript. No `tool` on old records: kind labels as before. */}
+				{/* The tool's OWN name first: probe-phase cards label Probe/Recall — the phase boundary visible in the transcript. */}
 				{answer.tool === "probe"
 					? "Probe"
 					: answer.tool === "recall"
@@ -90,8 +67,7 @@ export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionA
 				<ToolContentResponse>{answer.questionText}</ToolContentResponse>
 			</div>
 			{parsedDetails && (
-				// The details line, same paint as the pending dock (owner,
-				// 2026-10-12): full markdown, LaTeX included.
+				// The details line, same paint as the pending dock: full markdown, LaTeX included.
 				<div className="mb-3 text-sm text-muted-foreground">
 					<ToolContentResponse>{parsedDetails}</ToolContentResponse>
 				</div>
@@ -114,8 +90,7 @@ export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionA
 								)}
 							>
 								{isQuiz && (
-									// Zapf-Dingbats-derived SVG outlines — the exact LaTeX \ding{51}/
-									// \ding{55} hand-drawn shapes (owner, round 6); see ui/glyph-mark.
+									// Zapf-Dingbats-derived SVG outlines — the exact LaTeX \ding{51}/ \ding{55} hand-drawn shapes; see ui/glyph-mark.
 									<span
 										aria-hidden
 										data-mark={sel && key ? "check" : sel && !key ? "x" : !sel && key ? "check" : undefined}
@@ -126,17 +101,14 @@ export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionA
 											!sel && key && "text-green-500",
 										)}
 									>
-										{/* Owner round 8: a touch smaller than the text (size-4→size-3.5,
-											   ≈14px vs the 16px row) while centered. */}
+										{/* Owner round 8: a touch smaller than the text (size-4→size-3.5, ≈14px vs the 16px row) while centered. */}
 										{(key || sel) && <GlyphMark kind={key ? "check" : "x"} className="size-3.5" />}
 									</span>
 								)}
 								<span className={cn(!sel && "text-muted-foreground")}>
 									<ToolContentResponse>{opt.label}</ToolContentResponse>
 									{descByIndex.get(opt.index) && (
-										// Ask-option subtext (owner, 2026-10-12): same markdown path
-										// as the pending dock — LaTeX included. Quiz options carry
-										// none (owner ruling 2026-09-26); the map stays empty for them.
+										// Ask-option subtext: same markdown path as the pending dock — LaTeX included.
 										<ToolContentResponse className="lh-prose block text-xs text-muted-foreground">
 											{descByIndex.get(opt.index)}
 										</ToolContentResponse>
@@ -145,9 +117,7 @@ export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionA
 							</div>
 						);
 					})}
-					{/* The learner's own typed option is an OPTION — same container,
-					    same selected styling as its siblings, not a loose quote
-					    floating outside the list. Quotes keep the learner's words. */}
+					{/* The learner's own typed option is an OPTION — same container, same selected styling as its siblings, not a loose quote floating outside the list. */}
 					{answer.other && (
 						<div
 							data-testid="answered-other"
@@ -161,13 +131,7 @@ export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionA
 
 			{answer.text && <div className="lh-prose mt-2 whitespace-pre-wrap">“{answer.text}”</div>}
 
-			{/* The confidence record (owner round 6): the slider's rail, disc
-			    removed — the missing handle itself says "this is a record, not a
-			    control". Same paint, same ticks, same ramp, same % read-out as the
-			    live dock. Quiz answers only, and only when a confidence exists:
-			    "I don't know" sent none (its slider was grayed out), explain and
-			    ask never had one, and records from before the feature carry no
-			    field — nothing to show, nothing rendered. */}
+			{/* The confidence record: the slider's rail, disc removed — the missing handle itself says "this is a record, not a control". */}
 			{isQuiz && answer.confidence != null && (
 				<div className="mt-3 flex items-center gap-3" data-testid="answered-confidence">
 					<ConfidenceRail value={answer.confidence} className="min-w-0 flex-1" />
@@ -181,10 +145,7 @@ export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionA
 			)}
 
 			{(answer.thinking ?? answer.note) && (
-				/* The SAME unified row (owner round, 2026-10-05): the quiz answer's
-				    thinking is the identical collapsible ThinkingBlock — one
-				    geometry, but NO band on the card (owner round five, 2026-10-07:
-				    the accent lift read too light); rail only, heights identical. */
+				/* The SAME unified row: the quiz answer's thinking is the identical collapsible ThinkingBlock — one geometry, but NO band on the card; rail only */
 				<ThinkingBlock
 					testId="your-thinking"
 					label="YOUR THINKING"
@@ -193,14 +154,9 @@ export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionA
 				/>
 			)}
 
-			{/* px-3→removed: card p-4 + box px-3 double-inset sat the "Why" label deeper
-			    than the option box edges (owner, round 3). Sides flush with everything
-			    else; py-2 stays for vertical air. */}
+			{/* px-3→removed: card p-4 + box px-3 double-inset sat the "Why" label deeper than the option box edges. */}
 			{isQuiz && answer.explanation && (
-				/* The TUCKED explanation — ALL questions (owner, 2026-10-07): the
-				   verdict shows, the explanation sits collapsed behind the Why
-				   toggle — viewable, never center stage. Identical to the
-				   prediction pattern it generalizes (owner, 2026-10-03). */
+				/* The TUCKED explanation — ALL questions: the verdict shows, the explanation sits collapsed behind the Why toggle — viewable, never center stage. */
 				<div className="mt-2" data-testid="tucked-explanation">
 					<button
 						type="button"
@@ -212,17 +168,14 @@ export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionA
 					{whyOpen && (
 						<div className="mt-1.5 rounded-lg bg-muted py-2 text-sm text-foreground/50">
 							<span className="font-medium text-muted-foreground">Why: </span>
-							{/* Keep the first paragraph beside the label, not every paragraph:
-							   later paragraphs must retain their recovered document structure. */}
+							{/* Keep the first paragraph beside the label, not every paragraph: later paragraphs must retain their recovered document structure. */}
 							<ToolContentResponse className="inline [&>p:first-child]:inline [&>p:first-child]:m-0">{answer.explanation}</ToolContentResponse>
 						</div>
 					)}
 				</div>
 			)}
 
-			{/* The explain reveal (owner ruling 2026-09-27): the committed answer
-			    — one field, reasoning included — shown on submit; no verdict,
-			    the model's next reply IS the grading. */}
+			{/* The explain reveal: the committed answer — one field, reasoning included — shown on submit; no verdict, the model's next reply IS the grading. */}
 			{isExplain && answer.committed && (
 				<div className="mt-3 rounded-lg bg-muted py-2 text-sm text-muted-foreground">
 					<span className="font-medium text-foreground">The answer: </span>

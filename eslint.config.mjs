@@ -3,25 +3,10 @@ import nextPlugin from "@next/eslint-plugin-next";
 import tsParser from "@typescript-eslint/parser";
 import importPlugin from "eslint-plugin-import";
 
-/**
- * ESLint with one job here: ENFORCE THE IMPORT LAW (the shell/core
- * architecture, docs/architecture.md). Everything else stays out of the
- * way — this is not a style linter.
- *
- *   components/**  →  "@/src/core"  (the pure core barrel) — ONLY
- *   app/**         →  "@/src/core" + "@/src/server" (the server barrel) — ONLY
- *   src/core/**    →  never imports src/agent, src/server, src/store (pure
- *                    core: adapters implement core/ports.ts, never the reverse)
- *   src/agent/**   →  never imports src/server, src/store (dependencies —
- *                    the storage ports, the composition — arrive via
- *                    factories/closures from the chat-handler)
- *
- * tests/ and scripts/ are internal — unrestricted.
- */
+/** ESLint with one job here: ENFORCE THE IMPORT LAW (the shell/core architecture, docs/architecture.md). */
 
 export default defineConfig([
-	// electron/** — the desktop shell: plain Node, no framework, outside the
-// import law (same rationale as scripts/).
+	// electron/** — the desktop shell: plain Node, no framework, outside the import law (same rationale as scripts/).
 	globalIgnores([".next/**", "node_modules/**", "data/**", "next-env.d.ts", "scripts/**", "electron/**", "dist/**"]),
 	{
 		files: ["**/*.{js,mjs,ts,tsx}"],
