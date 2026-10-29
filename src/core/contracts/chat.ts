@@ -41,6 +41,8 @@ export interface ChatRecord {
 	workspace?: string;
 	/** Coding chats: the lesson chat that opened this one. */
 	lessonChatId?: string;
+	/** The learning-tree node this session works on (learning-tree.ts). */
+	branchId?: string;
 	/** The session's plan tree (vision §2) — written by plan tools via saveTree. */
 	tree?: PlanTree;
 	/** Append-only usage log (observability, 2026-09): one entry per model

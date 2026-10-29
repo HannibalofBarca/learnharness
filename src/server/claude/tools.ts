@@ -31,6 +31,7 @@ import { block, claudeSession, serialized, type ClaudeSession } from "./session.
 import { callGraphTool, GRAPH_TOOLS } from "./graph-tools.ts";
 import { callDeliverTool, DELIVER_TOOLS } from "./deliver-tools.ts";
 import { callCodingTool, CODING_TOOLS } from "./coding.ts";
+import { callTreeTutorTool, outline, readTree, TREE_TUTOR_TOOLS } from "./learning-tree.ts";
 
 export type Phase = "prober" | "teacher" | "practice" | "code";
 
@@ -120,6 +121,7 @@ export function listTools(chatId: string): ListedTool[] {
 	for (const tool of BRIDGE_TOOLS) byName.set(tool.name, tool);
 	if (record?.kind !== "practice") for (const tool of GRAPH_TOOLS) byName.set(tool.name, tool);
 	if ((record?.kind ?? "teach") === "teach") for (const tool of CODING_TOOLS) byName.set(tool.name, tool);
+	if (record?.kind !== "practice") for (const tool of TREE_TUTOR_TOOLS) byName.set(tool.name, tool);
 	for (const tool of DELIVER_TOOLS) byName.set(tool.name, tool);
 	return [...byName.values()];
 }
@@ -188,6 +190,8 @@ export function resumeText(record: ChatRecord): string {
 	const tail = history.length > RESUME_TAIL_CHARS ? `…(earlier history omitted)…\n${history.slice(-RESUME_TAIL_CHARS)}` : history;
 	lines.push("", "Recent history:", tail || "(none yet)");
 	if (record.kind === "code") lines.push("", ...codingContext(record));
+	const nodes = record.branchId ? readTree() : [];
+	if (nodes.some((n) => n.id === record.branchId)) lines.push("", "Learning-tree branch (tree_branch shows it live):", outline(nodes, [record.branchId!]));
 	return lines.join("\n");
 }
 
@@ -239,6 +243,9 @@ async function runCall(session: ClaudeSession, chatId: string, name: string, raw
 
 	const coding = callCodingTool(chatId, name, rawArgs);
 	if (coding) return coding;
+
+	const tree = callTreeTutorTool(record, name, rawArgs);
+	if (tree) return tree;
 
 	if (session.stopRequested) {
 		session.stopRequested = false;

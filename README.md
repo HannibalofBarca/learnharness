@@ -10,6 +10,7 @@ A fork of [LearnHarness](https://github.com/amosblomqvist/learnharness) where yo
 | Graph & extras | Graph extraction, notes import, research, PDFs, demos, figures done by Claude |
 | Hardening | Local-only dev server, same-origin API gate, token-protected bridge |
 | IDE integration | Lessons open a linked coding chat that sets up a per-topic workspace (uv env, deps) and links to VS Code |
+| Learning tree | The Planner page is a branching canvas of everything you study — shared topics sit once under every purview; the planner grows the trunk, lesson tutors grow and tick off the leaves |
 
 Requires Claude Code installed and signed in. Details: [`docs/claude-code-bridge.md`](docs/claude-code-bridge.md).
 

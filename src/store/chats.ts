@@ -32,7 +32,7 @@ function chatFile(id: string): string {
  *  phase, busy, pendingQuestion) is already announced by turn-started /
  *  turn-settled, which the sidebar refetches on. Silence here is law,
  *  not oversight. */
-function createChat(title: string, kind?: "practice" | "code", link?: { workspace: string; lessonChatId: string }): ChatRecord {
+function createChat(title: string, kind?: "practice" | "code", link?: { workspace?: string; lessonChatId?: string; branchId?: string }): ChatRecord {
 	const now = new Date().toISOString();
 	const record: ChatRecord = {
 		id: `chat_${Date.now().toString(36)}_${crypto.randomUUID().slice(0, 8)}`,
@@ -43,7 +43,8 @@ function createChat(title: string, kind?: "practice" | "code", link?: { workspac
 		// Practice sessions carry the marker; teach stays ABSENT (absence
 		// reads as teach — pre-practice records never migrate).
 		...(kind === "practice" ? { kind: "practice" as const } : {}),
-		...(kind === "code" && link ? { kind: "code" as const, workspace: link.workspace, lessonChatId: link.lessonChatId } : {}),
+		...(kind === "code" && link?.workspace && link.lessonChatId ? { kind: "code" as const, workspace: link.workspace, lessonChatId: link.lessonChatId } : {}),
+		...(link?.branchId ? { branchId: link.branchId } : {}),
 	};
 	fs.mkdirSync(PATHS.chats, { recursive: true });
 	writeChat(record);

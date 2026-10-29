@@ -45,4 +45,5 @@ export { handleMcpRequest } from "./claude/mcp.ts";
 export { handleClaudeHook } from "./claude/hook.ts";
 export { claudeLaunch } from "./claude/launch.ts";
 export { queueNotes } from "./claude/graph-tools.ts";
-export { deletePlan, getPlan, listPlans, openTopicSession, plannerLaunch, PLANNER_ID, type Plan } from "./claude/planner.ts";
+export { plannerLaunch, PLANNER_ID } from "./claude/planner.ts";
+export { openBranchSession, treeView, type TreeKind, type TreeNode, type TreeStatus } from "./claude/learning-tree.ts";

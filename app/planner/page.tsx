@@ -1,6 +1,6 @@
 import { Planner } from "@/components/planner";
 
-/** The Planner (ClaudeHarness): plans + the planner's Claude Code terminal. */
+/** The Planner (ClaudeHarness): the learning tree + the planner's Claude Code terminal. */
 export default function PlannerPage() {
 	return <Planner />;
 }

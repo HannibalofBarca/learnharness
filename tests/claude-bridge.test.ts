@@ -225,21 +225,43 @@ describe("claude bridge", () => {
 		await handleClaudeHook(new Request(`http://127.0.0.1/api/claude/hook?chat=${id}`, { method: "POST", headers: { authorization: `Bearer ${bridgeToken()}` }, body: JSON.stringify({ session_id: "conv-1", stop_hook_active: true }) }));
 		assert.ok(claudeLaunch(id, "http://127.0.0.1:4321")!.resumeArgs?.includes("conv-1"), "the hook-recorded conversation resumes");
 	});
-	it("the planner: saves plans, opens topic sessions with the plan context, launches unrestricted", async () => {
-		const { callPlannerTool, plannerLaunch, listPlans } = await import("../src/server/claude/planner.ts");
-		const saved = await callPlannerTool("plan_save", { title: "Calculus", markdown: "# Goals\nUnderstand derivatives.", topics: [{ title: "Limits", goal: "Know what a limit is" }, { title: "Derivatives", goal: "Derive x^2" }] }, never);
+	it("the planner: builds the learning tree, opens branch sessions whose tutor grows and marks the branch, launches unrestricted", async () => {
+		const { callPlannerTool, plannerLaunch, PLANNER_TOOLS } = await import("../src/server/claude/planner.ts");
+		const { readTree } = await import("../src/server/claude/learning-tree.ts");
+		const names = PLANNER_TOOLS.map((t) => t.name);
+		for (const n of ["tree_get", "tree_upsert", "tree_remove", "tree_open_session", "sessions_list"]) assert.ok(names.includes(n), n);
+		for (const n of ["plan_save", "session_open"]) assert.ok(!names.includes(n), `${n} is retired`);
+		const saved = await callPlannerTool("tree_upsert", { nodes: [
+			{ title: "Academia", kind: "group" },
+			{ title: "Robot Learning", kind: "group", parents: ["Academia"], source: "homework.md" },
+			{ title: "6.S184", kind: "group", parents: ["Academia"] },
+			{ title: "Gen AI", kind: "group", parents: ["robot-learning"] },
+		] }, never);
 		assert.ok(!saved.isError, saved.text);
-		const plan = listPlans().find((p) => p.title === "Calculus")!;
-		assert.equal(plan.topics.length, 2);
-		const opened = await callPlannerTool("session_open", { planId: plan.id, topicIndex: 1 }, never);
+		const opened = await callPlannerTool("tree_open_session", { id: "gen-ai" }, never);
 		assert.ok(!opened.isError, opened.text);
-		const reread = listPlans().find((p) => p.id === plan.id)!;
-		const chat = chatStore.getChat(reread.topics[1]!.sessionId!)!;
-		assert.equal(chat.title, "Derivatives");
-		assert.match(String((chat.messages[0] as { content: unknown }).content), /Goal: Derive x\^2[\s\S]*Understand derivatives/);
-		const resaved = await callPlannerTool("plan_save", { id: plan.id, title: "Calculus", markdown: "v2", topics: [{ title: "Derivatives", goal: "Derive x^2" }] }, never);
-		assert.ok(!resaved.isError);
-		assert.equal(listPlans().find((p) => p.id === plan.id)!.topics[0]!.sessionId, chat.id, "a topic keeps its session across re-saves");
+		const chatId = /Session (chat_[A-Za-z0-9_]+)/.exec(opened.text)![1]!;
+		chatIds.add(chatId);
+		const chat = chatStore.getChat(chatId)!;
+		assert.equal(chat.title, "Gen AI");
+		assert.equal(chat.branchId, "gen-ai");
+		assert.match(String((chat.messages[0] as { content: unknown }).content), /Academia › Robot Learning › Gen AI/);
+
+		// The tutor grows its branch; an existing topic is linked, not copied.
+		assert.ok(listTools(chatId).some((t) => t.name === "tree_add"));
+		const added = await callTool(chatId, "tree_add", { title: "Flow matching", parent: "gen-ai" }, never);
+		assert.ok(!added.isError, added.text);
+		assert.ok((await callTool(chatId, "tree_add", { title: "X", parent: "6-s184" }, never)).isError, "outside its branch");
+		await callPlannerTool("tree_upsert", { nodes: [{ title: "flow  Matching", parents: ["6.S184"] }] }, never);
+		const flow = readTree().filter((n) => n.title === "Flow matching");
+		assert.equal(flow.length, 1, "one node per topic");
+		assert.deepEqual(flow[0]!.parents, ["gen-ai", "6-s184"]);
+		assert.ok(!(await callTool(chatId, "tree_status", { id: "flow-matching", status: "done" }, never)).isError);
+		const outline = (await callPlannerTool("tree_get", {}, never)).text;
+		assert.match(outline, /\[x\] Flow matching \{flow-matching\}/);
+		assert.match(outline, /↪ Flow matching/, "the shared topic points back under its second parent");
+		assert.ok((await callTool(chatId, "tree_branch", {}, never)).text.includes("Flow matching"));
+
 		const launch = plannerLaunch("http://127.0.0.1:4321");
 		assert.ok(!launch.freshArgs.includes("--restricted") && !launch.freshArgs.includes("--strict-mcp-config"), "the planner is the learner's normal Claude Code");
 		assert.ok(launch.freshArgs.includes("--append-system-prompt-file"));
