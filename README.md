@@ -9,6 +9,7 @@ A fork of [LearnHarness](https://github.com/amosblomqvist/learnharness) where yo
 | Locked-down tutor | Restricted tools, no connectors, data folder and secrets unreadable |
 | Graph & extras | Graph extraction, notes import, research, PDFs, demos, figures done by Claude |
 | Hardening | Local-only dev server, same-origin API gate, token-protected bridge |
+| IDE integration | Lessons open a linked coding chat that sets up a per-topic workspace (uv env, deps) and links to VS Code |
 
 Requires Claude Code installed and signed in. Details: [`docs/claude-code-bridge.md`](docs/claude-code-bridge.md).
 
