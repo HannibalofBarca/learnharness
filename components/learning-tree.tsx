@@ -7,7 +7,8 @@ import { useRouter } from "next/navigation";
 import { CodeIcon, MaximizeIcon, MessageSquareIcon, MinusIcon, PlusIcon, XIcon } from "lucide-react";
 import { curveBasis, line } from "d3-shape";
 import { cn } from "@/lib/utils";
-import { blockLayout, LINE_H, NODE_H, NODE_W_MIN, wrapTitle } from "@/components/plan-block";
+import { LINE_H, NODE_H, nodeWidth, wrapTitle } from "@/components/plan-block";
+import { radialLayout } from "@/components/tree-layout";
 import { fitGraphView, fitZoomFor, zoomedGraphView, type Viewport } from "@/components/pan-zoom";
 
 type TreeKind = "group" | "concept" | "practice";
@@ -33,7 +34,6 @@ const PAD = 24;
 const COLLAPSED_KEY = "lh-tree-collapsed";
 /** Topics (non-group nodes) draw as dots of this box size; their title shows on hover. */
 const DOT = 12;
-const DOT_GAP = 10;
 
 const edgeLine = line<{ x: number; y: number }>()
 	.x((p) => p.x)
@@ -160,12 +160,14 @@ export function LearningTree() {
 			.map((n) => {
 				const hidden = collapsed.has(n.id) ? descendants(n.id, children).size : 0;
 				const title = hidden ? `${n.title} (+${hidden})` : n.title;
-				return n.kind === "group" ? { id: n.id, title } : { id: n.id, title, size: DOT };
+				if (n.kind !== "group") return { id: n.id, title, w: DOT, h: DOT };
+				const lines = wrapTitle(title);
+				return { id: n.id, title, w: nodeWidth(lines), h: NODE_H + Math.max(0, lines.length - 2) * LINE_H };
 			});
 		const status = shownStatuses(nodes, children);
 		return { labelled, edges, status, children };
 	}, [nodes, collapsed]);
-	const layout = useMemo(() => blockLayout(view.labelled, view.edges, DOT_GAP), [view]);
+	const layout = useMemo(() => radialLayout(view.labelled, view.edges), [view]);
 	const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n] as const)), [nodes]);
 
 	// ── pan/zoom (the plan popup's fit-floor semantics, pan-zoom.ts) ──
@@ -290,8 +292,7 @@ export function LearningTree() {
 						const node = byId.get(n.id)!;
 						const status = view.status.get(n.id) ?? "todo";
 						const lines = wrapTitle(n.title);
-						const h = layout.nodeH.get(n.id) ?? NODE_H;
-						const w = layout.nodeW.get(n.id) ?? NODE_W_MIN;
+						const { w, h } = n;
 						const y0 = (h - lines.length * LINE_H) / 2 + 10;
 						const group = node.kind === "group";
 						return (

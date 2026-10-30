@@ -49,8 +49,6 @@ const GAP_Y = 48;
 interface LayoutNode {
 	id: string;
 	title: string;
-	/** A fixed box (e.g. a dot) instead of one sized to the wrapped title. */
-	size?: number;
 }
 
 /** Topological order + longest-path depth (Kahn, authoring tie-break) — order + depth semantics kept for tests; placement itself runs on dagre now. */
@@ -93,7 +91,7 @@ export function topoFor(nodes: readonly LayoutNode[], edges: ReadonlyArray<{ fro
 }
 
 /** Placement — dagre: Sugiyama-style layered layout, TB, with our geometry (text-first sized boxes, GAP_X/GAP_Y separations, zero margin */
-export function blockLayout(nodes: readonly LayoutNode[], edges: ReadonlyArray<{ from: string; to: string }>, nodesep = GAP_X) {
+export function blockLayout(nodes: readonly LayoutNode[], edges: ReadonlyArray<{ from: string; to: string }>) {
 	const x = new Map<string, number>();
 	const y = new Map<string, number>();
 	const nodeH = new Map<string, number>();
@@ -104,12 +102,12 @@ export function blockLayout(nodes: readonly LayoutNode[], edges: ReadonlyArray<{
 	const ids = new Set(nodes.map((n) => n.id));
 	const routed: Array<{ from: string; to: string }> = [];
 	const g = new graphlib.Graph({ compound: false, multigraph: true });
-	g.setGraph({ rankdir: "TB", nodesep, ranksep: GAP_Y, marginx: 0, marginy: 0 });
+	g.setGraph({ rankdir: "TB", nodesep: GAP_X, ranksep: GAP_Y, marginx: 0, marginy: 0 });
 	for (const n of nodes) {
 		const lines = wrapTitle(n.title);
-		const h = n.size ?? NODE_H + Math.max(0, lines.length - 2) * LINE_H;
+		const h = NODE_H + Math.max(0, lines.length - 2) * LINE_H;
 		nodeH.set(n.id, h);
-		nodeW.set(n.id, n.size ?? nodeWidth(lines));
+		nodeW.set(n.id, nodeWidth(lines));
 		g.setNode(n.id, { width: nodeW.get(n.id)!, height: h });
 	}
 	for (const e of edges) {
